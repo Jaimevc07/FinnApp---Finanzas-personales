@@ -103,7 +103,8 @@ export function BarraLateral() {
   );
 }
 
-const MOVIL = [DESTINOS[0], DESTINOS[1], null, DESTINOS[2], DESTINOS[3]];
+// En el celular, Movimientos va junto a Inicio (se usa más) y Presupuesto pasa al otro lado del botón +
+const MOVIL = [DESTINOS[0], DESTINOS[2], null, DESTINOS[1], DESTINOS[3]];
 
 export function NavegacionInferior() {
   const path = usePathname();

@@ -1,7 +1,7 @@
 'use client';
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Minus, Plus, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
-import { BarrasHorizontales } from '@/components/graficos/barras-h';
+import { ComoVaElMes } from '@/components/plan-vs-real';
 import { useDatos } from '@/components/proveedor';
 import { SelectorPeriodo } from '@/components/selector-periodo';
 import { ConDatos } from '@/components/shell';
@@ -83,25 +83,7 @@ function VistaMovimientos() {
             </div>
           )}
 
-          <Tarjeta titulo="Plan vs real por categoría" subtitulo="La marca naranja es lo presupuestado para el mes">
-            {r.filas.length ? (
-              <BarrasHorizontales
-                mostrarPct={false}
-                total={r.egresos}
-                filas={r.filas
-                  .sort((a, b) => b.real - a.real || b.plan - a.plan)
-                  .map(f => ({
-                    id: f.nombre,
-                    nombre: f.nombre,
-                    valor: f.real,
-                    tope: f.plan,
-                    extra: f.real > f.plan && f.plan > 0 ? <span className="text-[11px] font-semibold text-neg-text">+{cop(f.real - f.plan)}</span> : null,
-                  }))}
-              />
-            ) : (
-              <p className="text-[13px] text-muted">Sin presupuesto ni movimientos este mes.</p>
-            )}
-          </Tarjeta>
+          <ComoVaElMes r={r} mes={fila?.periodo.etiqueta ?? etiquetaMes(periodoId)} />
         </div>
 
         <div className="lg:col-span-7">

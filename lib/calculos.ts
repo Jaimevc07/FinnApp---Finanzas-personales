@@ -347,23 +347,95 @@ export function movimientosDe(e: Estado, periodoId: string): Movimiento[] {
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
 }
 
-export type PlanVsReal = { nombre: string; plan: number; real: number };
+/** Un ítem del presupuesto en el mes: lo planeado frente a lo gastado con ese ítem. */
+export type ItemPlanReal = { rubro: Rubro; plan: number; real: number; pendiente: number; exceso: number; movs: Movimiento[] };
 
-/** Lo registrado frente a lo presupuestado, por categoría de egreso. */
+export type PlanVsReal = {
+  /** id de la categoría (null si el gasto trae una categoría que ya no existe, p. ej. "Otros gastos") */
+  id: number | null;
+  nombre: string;
+  plan: number;
+  real: number;
+  /** Lo gastado que cabe en el presupuesto de cada ítem */
+  enPlan: number;
+  /** Lo que todavía se espera gastar: lo que falta de cada ítem */
+  pendiente: number;
+  /** Gastos sin ítem del presupuesto */
+  sinItem: number;
+  /** Lo que no estaba en el plan: gastos sin ítem + lo que se pasó cada ítem */
+  fueraDelPlan: number;
+  /** Cómo cerraría el mes: lo gastado + lo que falta por gastar */
+  cierre: number;
+  items: ItemPlanReal[];
+  movsSinItem: Movimiento[];
+};
+
+const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+
+/**
+ * Lo registrado frente a lo presupuestado, por categoría de egreso y por ítem. Cada gasto cuenta contra el
+ * ítem que se eligió al registrarlo (o, si no se eligió, contra el ítem que se llama igual que la
+ * descripción). Un gasto sin ítem no estaba en el plan: se suma como "fuera del plan" y no descuenta lo
+ * que falta por gastar de los demás ítems.
+ */
 export function planVsReal(e: Estado, periodoId: string, fila?: ResumenPeriodo) {
   const movs = movimientosDe(e, periodoId);
+  const egresosMes = movs.filter(m => m.tipo === 'egreso');
   const ingresos = movs.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.valor, 0);
-  const egresos = movs.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.valor, 0);
-  const realPor = new Map<string, number>();
-  for (const m of movs) if (m.tipo === 'egreso') realPor.set(m.categoria, (realPor.get(m.categoria) ?? 0) + m.valor);
+  const egresos = egresosMes.reduce((s, m) => s + m.valor, 0);
+  const rubros = new Map(e.rubros.map(r => [r.id, r]));
+  const catPorNombre = new Map(e.categorias.map(c => [c.nombre, c]));
+
+  // A qué ítem va cada gasto
+  const porRubro = new Map<number, Movimiento[]>();
+  const sinItemPor = new Map<string, Movimiento[]>();
+  for (const m of egresosMes) {
+    let r = m.rubro_id != null ? rubros.get(m.rubro_id) : undefined;
+    if (!r) {
+      const cat = catPorNombre.get(m.categoria);
+      const desc = normalizar(m.descripcion ?? '');
+      r = cat && desc ? e.rubros.find(x => x.categoria_id === cat.id && normalizar(x.nombre) === desc) : undefined;
+    }
+    if (r && seccionDe(e, r) === 'ingreso') r = undefined;
+    if (r) porRubro.set(r.id, [...(porRubro.get(r.id) ?? []), m]);
+    else sinItemPor.set(m.categoria, [...(sinItemPor.get(m.categoria) ?? []), m]);
+  }
+
+  const suma = (xs: Movimiento[]) => xs.reduce((s, m) => s + m.valor, 0);
+  const armar = (id: number | null, nombre: string, items: ItemPlanReal[], movsSinItem: Movimiento[]): PlanVsReal => {
+    const plan = items.reduce((s, x) => s + x.plan, 0);
+    const sinItem = suma(movsSinItem);
+    const enPlan = items.reduce((s, x) => s + Math.min(x.real, x.plan), 0);
+    const pendiente = items.reduce((s, x) => s + x.pendiente, 0);
+    const fueraDelPlan = sinItem + items.reduce((s, x) => s + x.exceso, 0);
+    const real = enPlan + fueraDelPlan;
+    return { id, nombre, plan, real, enPlan, pendiente, sinItem, fueraDelPlan, cierre: real + pendiente, items, movsSinItem };
+  };
 
   const filas: PlanVsReal[] = e.categorias
     .filter(c => c.seccion !== 'ingreso')
-    .map(c => ({ nombre: c.nombre, plan: fila?.porCategoria[c.id] ?? 0, real: realPor.get(c.nombre) ?? 0 }))
+    .map(c => {
+      const items = e.rubros
+        .filter(r => r.categoria_id === c.id)
+        .map(r => {
+          const plan = fila ? valorCelda(e, r, periodoId) : 0;
+          const ms = porRubro.get(r.id) ?? [];
+          const real = suma(ms);
+          return { rubro: r, plan, real, pendiente: Math.max(0, plan - real), exceso: Math.max(0, real - plan), movs: ms };
+        })
+        .filter(x => x.plan > 0 || x.real > 0);
+      return armar(c.id, c.nombre, items, sinItemPor.get(c.nombre) ?? []);
+    })
     .filter(x => x.plan > 0 || x.real > 0);
-  const otros = realPor.get(OTROS_GASTOS);
-  if (otros) filas.push({ nombre: OTROS_GASTOS, plan: 0, real: otros });
-  return { movs, ingresos, egresos, filas };
+  // Gastos con una categoría que no es de egreso o que ya no existe (p. ej. "Otros gastos")
+  const conocidas = new Set(e.categorias.filter(c => c.seccion !== 'ingreso').map(c => c.nombre));
+  for (const [nombre, ms] of sinItemPor) if (!conocidas.has(nombre)) filas.push(armar(null, nombre || OTROS_GASTOS, [], ms));
+
+  const total = (k: 'plan' | 'enPlan' | 'pendiente' | 'fueraDelPlan' | 'cierre') => filas.reduce((s, f) => s + f[k], 0);
+  return {
+    movs, ingresos, egresos, filas,
+    plan: total('plan'), enPlan: total('enPlan'), pendiente: total('pendiente'), fueraDelPlan: total('fueraDelPlan'), cierre: total('cierre'),
+  };
 }
 
 /** Lo real del mes por nombre de categoría: gastos (por defecto) o ingresos. */

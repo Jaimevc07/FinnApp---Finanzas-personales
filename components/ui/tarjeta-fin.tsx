@@ -6,7 +6,7 @@ import { diaSueldo } from '@/lib/meses';
 import { cx } from './botones';
 import { Marca } from './marca';
 
-export function TarjetaFin({ titular, mes, cobro, ingresosPlan, egresosPlan, ingresosReal, egresosReal, className }: {
+export function TarjetaFin({ titular, mes, cobro, ingresosPlan, egresosPlan, ingresosReal, egresosReal, porGastar, fueraDelPlan, className }: {
   titular: string;
   /** "Nov 2026" */
   mes: string;
@@ -18,13 +18,19 @@ export function TarjetaFin({ titular, mes, cobro, ingresosPlan, egresosPlan, ing
   /** Lo registrado en movimientos del mes */
   ingresosReal: number;
   egresosReal: number;
+  /** Lo que falta por gastar de cada ítem del plan */
+  porGastar: number;
+  /** Gastos sin ítem del presupuesto o que pasan el tope de su ítem */
+  fueraDelPlan: number;
   className?: string;
 }) {
-  const queda = egresosPlan - egresosReal;
-  const pasado = Math.round(queda) < 0;
-  const pctGasto = egresosPlan > 0 ? egresosReal / egresosPlan : egresosReal > 0 ? 1 : 0;
-  const ancho = Math.min(100, pctGasto * 100);
-  const sobraPlan = ingresosPlan - egresosPlan;
+  const queda = porGastar;
+  const pasado = Math.round(fueraDelPlan) > 0;
+  const cierre = egresosReal + porGastar;
+  const enPlan = egresosReal - fueraDelPlan;
+  const pctGasto = egresosPlan > 0 ? enPlan / egresosPlan : 0;
+  const escala = Math.max(1, cierre, egresosPlan);
+  const sobra = ingresosPlan - cierre;
   const sueldo = diaSueldo(cobro);
 
   return (
@@ -55,23 +61,25 @@ export function TarjetaFin({ titular, mes, cobro, ingresosPlan, egresosPlan, ing
       </div>
 
       <div className="mt-5">
-        <p className="text-[12px] font-medium text-fin-muted">{pasado ? `Se pasaron del plan en ${mes}` : `Les queda por gastar en ${mes}`}</p>
-        <p className={cx('mt-0.5 text-[28px] font-bold leading-tight tracking-tight', pasado && 'text-fin-neg')}>
-          {pasado ? '−' : ''}
+        <p className="text-[12px] font-medium text-fin-muted">Falta por gastar en {mes}</p>
+        <p className="mt-0.5 text-[28px] font-bold leading-tight tracking-tight">
           <span className="mr-0.5 align-top text-[0.6em] leading-[1.4]">$</span>
-          {numero(Math.abs(queda))}
+          {numero(Math.max(0, queda))}
         </p>
         <p className="mt-0.5 text-[12px] text-fin-muted">
-          {egresosPlan > 0
-            ? `Llevan el ${Math.round(pctGasto * 100)} % de lo que esperan gastar`
-            : egresosReal > 0 ? 'Este mes no tiene gastos en el plan' : 'Aún no hay gastos en el plan de este mes'}
+          {pasado
+            ? <><b className="font-semibold text-fin-neg">−{cop(fueraDelPlan)} fuera del plan</b> · el mes cerraría en {cop(cierre)}</>
+            : egresosPlan > 0
+              ? `Llevan el ${Math.round(pctGasto * 100)} % de lo que esperan gastar`
+              : 'Aún no hay gastos en el plan de este mes'}
         </p>
       </div>
 
-      {/* Cuánto de lo esperado ya se gastó (blanco) y cuánto queda (naranja) */}
+      {/* Gastado en el plan (blanco) · falta por gastar (naranja) · fuera del plan (rojo) */}
       <div className="mt-3 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-fin-track" aria-hidden>
-        {ancho > 0 && <div className={cx('h-full rounded-full', pasado ? 'bg-fin-neg' : 'bg-fin-ink')} style={{ width: `${ancho}%` }} />}
-        {!pasado && ancho < 100 && <div className="h-full flex-1 rounded-full bg-accent" />}
+        {enPlan > 0 && <div className="h-full shrink-0 rounded-full bg-fin-ink" style={{ width: `${(enPlan / escala) * 100}%` }} />}
+        {porGastar > 0 && <div className="h-full shrink-0 rounded-full bg-accent" style={{ width: `${(porGastar / escala) * 100}%` }} />}
+        {fueraDelPlan > 0 && <div className="h-full shrink-0 rounded-full bg-fin-neg" style={{ width: `${(fueraDelPlan / escala) * 100}%` }} />}
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
@@ -93,7 +101,7 @@ export function TarjetaFin({ titular, mes, cobro, ingresosPlan, egresosPlan, ing
       </div>
 
       <p className="mt-4 border-t border-white/10 pt-3 text-[11px] text-fin-muted">
-        Según el plan les {Math.round(sobraPlan) < 0 ? 'falta' : 'sobra'} <b className={cx('font-semibold', Math.round(sobraPlan) < 0 ? 'text-fin-neg' : 'text-fin-ink')}>{cop(Math.abs(sobraPlan))}</b> en el mes
+        {pasado ? 'Con lo gastado de más les' : 'Según el plan les'} {Math.round(sobra) < 0 ? 'falta' : 'sobra'} <b className={cx('font-semibold', Math.round(sobra) < 0 ? 'text-fin-neg' : 'text-fin-ink')}>{cop(Math.abs(sobra))}</b> en el mes
         · se cubre con el sueldo del <b className="font-semibold text-fin-ink">{sueldo}</b>
       </p>
     </div>

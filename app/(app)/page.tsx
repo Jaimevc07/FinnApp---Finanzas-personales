@@ -1,5 +1,5 @@
 'use client';
-import { ArrowDownLeft, ArrowRight, BookOpen, Calculator, CalendarClock, Coins, History, Landmark, Plus, Settings, ShoppingBasket, SlidersHorizontal, Target, TrendingUp } from 'lucide-react';
+import { ArrowDownLeft, ArrowRight, BookOpen, Calculator, CalendarClock, CircleAlert, Coins, History, Landmark, Plus, Settings, ShoppingBasket, SlidersHorizontal, Target, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { Columnas } from '@/components/graficos/columnas';
 import { BarrasHorizontales } from '@/components/graficos/barras-h';
@@ -7,12 +7,13 @@ import { AvisoMesFuera } from '@/components/aviso-mes';
 import { FilaMeta } from '@/components/metas';
 import { ActividadReciente } from '@/components/actividad';
 import { MovimientosDelMes, ParaRevisar, SaludFinanciera } from '@/components/resumen-inicio';
+import { BarraMes, Leyenda } from '@/components/plan-vs-real';
 import { diaSueldo, diasRestantes, etiquetaMes, mesActual } from '@/lib/meses';
 import { useDatos } from '@/components/proveedor';
 import { SelectorPeriodo } from '@/components/selector-periodo';
 import { ConDatos } from '@/components/shell';
 import { AccionCircular, BotonAcento, BotonCircular, BotonPrimario, PastillaSuave, cx } from '@/components/ui/botones';
-import { BarraDividida, Estadistica, Insignia, MontoHeroe } from '@/components/ui/datos';
+import { Estadistica, Insignia, MontoHeroe } from '@/components/ui/datos';
 import { EncabezadoPantalla, Tarjeta } from '@/components/ui/estructura';
 import { TarjetaFin } from '@/components/ui/tarjeta-fin';
 import { calcularMetas, planVsReal, tablero } from '@/lib/calculos';
@@ -37,8 +38,7 @@ function Tablero() {
   if (!fila) return null;
 
   const iniciales = c.hogar.replace(/^Hogar\s+/i, '').split(/\s*&\s*|\s+y\s+/).map(x => x[0]).join('&').slice(0, 3);
-  // En el mes en curso: cuánto queda del plan por día hasta fin de mes.
-  const disponible = fila.egresos - real.egresos;
+  // En el mes en curso: cuánto falta por gastar por día hasta fin de mes.
   const dias = periodoId === hoy ? diasRestantes() : 0;
 
   return (
@@ -81,6 +81,8 @@ function Tablero() {
               egresosPlan={fila.egresos}
               ingresosReal={real.ingresos}
               egresosReal={real.egresos}
+              porGastar={real.pendiente}
+              fueraDelPlan={real.fueraDelPlan}
             />
             {puedeEditar && (
               <BotonPrimario onClick={() => abrirRegistro()} className="min-w-[220px] lg:hidden">
@@ -95,12 +97,25 @@ function Tablero() {
           </section>
 
           <Tarjeta titulo="Lo real del mes" subtitulo={`Movimientos registrados frente al plan de ${fila.periodo.etiqueta}`}>
-            <BarraDividida usado={real.egresos} total={fila.egresos} etiquetaUsado="Gastado real" etiquetaDisponible="Disponible del plan" />
-            {dias > 0 && disponible > 0 && (
+            <BarraMes enPlan={real.enPlan} pendiente={real.pendiente} fuera={real.fueraDelPlan} escala={Math.max(real.cierre, fila.egresos)} alto="h-2.5" />
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Leyenda color="bg-ink" etiqueta="Gastado en el plan" valor={cop(real.enPlan)} />
+              <Leyenda color="bg-accent" etiqueta="Falta por gastar" valor={cop(real.pendiente)} />
+              <Leyenda color="bg-neg" etiqueta="Fuera del plan" valor={real.fueraDelPlan > 0 ? `−${cop(real.fueraDelPlan)}` : cop(0)} tono={real.fueraDelPlan > 0 ? 'neg' : undefined} />
+            </div>
+            {real.fueraDelPlan > 0 && (
+              <p className="mt-4 flex items-start gap-2 rounded-2xl bg-neg-soft px-4 py-3 text-[13px] text-ink-2">
+                <CircleAlert className="mt-0.5 size-4 shrink-0 text-neg-text" />
+                <span className="min-w-0">
+                  Gastaron <b className="font-semibold text-neg-text">{cop(real.fueraDelPlan)}</b> fuera del plan. Para cerrar el mes en {cop(fila.egresos)}, recorten eso de lo que falta por gastar.
+                </span>
+              </p>
+            )}
+            {dias > 0 && real.pendiente > 0 && (
               <p className="mt-4 flex items-center gap-2 rounded-2xl bg-surface-2 px-4 py-3 text-[13px] text-ink-2">
                 <CalendarClock className="size-4 shrink-0 text-muted" />
                 <span className="min-w-0">
-                  Quedan {dias} {dias === 1 ? 'día' : 'días'} del mes: <b className="font-semibold text-ink">{cop(disponible / dias)} por día</b> para no pasarse del plan
+                  Quedan {dias} {dias === 1 ? 'día' : 'días'} del mes: lo que falta por gastar son <b className="font-semibold text-ink">{cop(real.pendiente / dias)} por día</b>
                 </span>
               </p>
             )}

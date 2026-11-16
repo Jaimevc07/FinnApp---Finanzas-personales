@@ -155,10 +155,15 @@ function armarAlertas(e: Estado, filas: ResumenPeriodo[], periodoId: string, fil
 
   const pvr = planVsReal(e, periodoId, fila);
   for (const f of pvr.filas) {
-    if (f.plan > 0 && f.real > f.plan) {
-      out.push({ tono: 'neg', icono: CircleAlert, href: '/movimientos', titulo: `Se pasaron ${cop(f.real - f.plan)} en ${f.nombre}`, texto: `${cop(f.real)} gastados de ${cop(f.plan)} planeados en ${mes}.` });
+    if (f.plan > 0 && f.fueraDelPlan > 0) {
+      out.push({
+        tono: 'neg', icono: CircleAlert, href: '/movimientos', titulo: `${cop(f.fueraDelPlan)} fuera del plan en ${f.nombre}`,
+        texto: f.pendiente > 0
+          ? `Con los ${cop(f.pendiente)} que faltan por gastar, ${f.nombre} cerraría en ${cop(f.cierre)} de ${cop(f.plan)} planeados en ${mes}.`
+          : `${cop(f.real)} gastados de ${cop(f.plan)} planeados en ${mes}.`,
+      });
     } else if (f.plan > 0 && f.real >= f.plan * 0.85) {
-      out.push({ tono: 'warn', icono: TriangleAlert, href: '/movimientos', titulo: `${f.nombre}: van en ${pct(f.real, f.plan)}`, texto: `Quedan ${cop(f.plan - f.real)} para el resto de ${mes}.` });
+      out.push({ tono: 'warn', icono: TriangleAlert, href: '/movimientos', titulo: `${f.nombre}: van en ${pct(f.real, f.plan)}`, texto: `Faltan ${cop(f.pendiente)} por gastar en el resto de ${mes}.` });
     } else if (f.plan === 0 && f.real > 0 && f.nombre !== OTROS_GASTOS) {
       out.push({ tono: 'warn', icono: TriangleAlert, href: '/presupuesto', titulo: `${f.nombre} no tiene presupuesto en ${mes}`, texto: `Ya llevan ${cop(f.real)}. Agreguen un rubro para que el plan lo cuente.` });
     }
