@@ -1,0 +1,19 @@
+{
+  "name": "appfinanzas",
+  "version": "1.0.0",
+  "description": "Finanzas del Hogar: presupuesto, plan de pago de deudas y registro de gastos con SQLite",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "prestart": "tailwindcss -i ./src/input.css -o ./public/app.css --minify",
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/app.css --minify",
+    "dev:css": "tailwindcss -i ./src/input.css -o ./public/app.css --watch"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

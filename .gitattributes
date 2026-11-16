@@ -1,0 +1,6 @@
+# Saltos de línea de Linux en el repositorio (Vercel compila en Linux)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.xlsx binary

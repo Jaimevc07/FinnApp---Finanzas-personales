@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Finanzas del Hogar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: barra lateral fija con navegación + lienzo de trabajo; el resumen abre con el "flujo del mes" como franja proporcional. */
+:root{
+  --bg:#eef2ee; --surface:#ffffff; --surface-2:#e4ebe5; --ink:#14211b; --muted:#5b6a62; --line:#d5ded7;
+  --accent:#0d6a4e; --accent-ink:#ffffff; --accent-soft:#d7ece2;
+  --gold:#b0761a; --gold-soft:#f6ead3;
+  --good:#1d7a4c; --good-soft:#dcf1e4; --warn:#9c640e; --warn-soft:#f7ecd6; --bad:#b03a33; --bad-soft:#f7e1df;
+  --c1:#0d6a4e; --c2:#3f8f8a; --c3:#b0761a; --c4:#5b6fb0; --c5:#b03a33; --c6:#7a9a3a; --c7:#8a6f9e;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:Inter,ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1512; --surface:#151e1a; --surface-2:#1c2722; --ink:#e4ebe6; --muted:#93a39a; --line:#28352f;
+    --accent:#45c193; --accent-ink:#06261b; --accent-soft:#16352a;
+    --gold:#e1a94c; --gold-soft:#33280f;
+    --good:#55d095; --good-soft:#143023; --warn:#e8b34f; --warn-soft:#30260f; --bad:#ef7d72; --bad-soft:#371b19;
+    --c1:#45c193; --c2:#62b8b1; --c3:#e1a94c; --c4:#8c9ce0; --c5:#ef7d72; --c6:#a6c766; --c7:#b89ccc;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1512; --surface:#151e1a; --surface-2:#1c2722; --ink:#e4ebe6; --muted:#93a39a; --line:#28352f;
+  --accent:#45c193; --accent-ink:#06261b; --accent-soft:#16352a;
+  --gold:#e1a94c; --gold-soft:#33280f;
+  --good:#55d095; --good-soft:#143023; --warn:#e8b34f; --warn-soft:#30260f; --bad:#ef7d72; --bad-soft:#371b19;
+  --c1:#45c193; --c2:#62b8b1; --c3:#e1a94c; --c4:#8c9ce0; --c5:#ef7d72; --c6:#a6c766; --c7:#b89ccc;
+  color-scheme:dark;
+}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);margin:0}
+</style>
+<link rel="stylesheet" href="/app.css">
+<style>
+.gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar{height:8px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:99px;background:var(--accent);transition:width .35s}
+.legend-dot{display:inline-block;width:10px;height:10px;border-radius:3px;flex:none}
+.flow-seg{transition:flex-grow .35s}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="lg:flex">
+  <!-- Barra lateral -->
+  <aside class="lg:w-64 lg:shrink-0 lg:h-screen lg:sticky lg:top-0 bg-surface border-b lg:border-b-0 lg:border-r border-line">
+    <div class="gutter lg:px-5 py-4 lg:py-6 flex lg:flex-col gap-4 lg:h-full">
+      <div class="flex items-center justify-between gap-3 lg:block">
+        <div>
+          <div class="font-display text-xl font-bold leading-tight">Finanzas<br class="hidden lg:block"> del Hogar</div>
+          <div class="text-xs text-muted mt-1">Jaime &amp; María · COP</div>
+        </div>
+        <button id="themeBtn" class="btn lg:hidden" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+      </div>
+    </div>
+    <nav id="nav" class="gutter lg:px-3 pb-3 lg:pb-0 flex lg:flex-col gap-1 overflow-x-auto lg:absolute lg:top-32 lg:w-64">
+      <button class="nav-btn on" data-tab="resumen">Resumen</button>
+      <button class="nav-btn" data-tab="presupuesto">Ingresos y gastos</button>
+      <button class="nav-btn" data-tab="deudas">Deudas y plan</button>
+      <button class="nav-btn" data-tab="registro">Registro de gastos</button>
+      <button class="nav-btn" data-tab="metas">Ahorro y metas</button>
+    </nav>
+    <div class="hidden lg:flex flex-col gap-2 absolute bottom-0 w-64 p-5 border-t border-line">
+      <div id="status" class="text-xs text-muted flex items-center gap-2"><span class="legend-dot" style="background:var(--muted)"></span>Conectando…</div>
+      <div class="flex flex-wrap gap-2">
+        <button id="themeBtn2" class="btn" title="Cambiar tema">◐ Tema</button>
+        <button id="exportBtn" class="btn">Exportar</button>
+        <label class="btn">Importar<input type="file" id="importFile" accept=".json" hidden></label>
+      </div>
+      <button id="resetBtn" class="text-xs text-muted hover:text-bad text-left">Restablecer datos iniciales</button>
+    </div>
+  </aside>
+
+  <main class="flex-1 min-w-0 gutter lg:px-10 py-6 lg:py-10 max-w-[1180px]">
+    <div id="offline" class="hidden mb-6 rounded-xl border border-line bg-badsoft p-4 text-sm">
+      <b class="block mb-1">No hay conexión con la base de datos</b>
+      Abre una terminal en la carpeta <code>appfinanzas</code>, ejecuta <code>npm start</code> y entra a <code>http://localhost:4300</code>.
+    </div>
+
+    <!-- RESUMEN -->
+    <section data-view="resumen" class="flex flex-col gap-6">
+      <header>
+        <div class="eyebrow" id="mesActual"></div>
+        <h1 class="font-display text-3xl lg:text-4xl font-bold mt-1" style="text-wrap:balance">Flujo del mes</h1>
+      </header>
+
+      <div class="card">
+        <div class="flex flex-wrap items-end justify-between gap-2 mb-3">
+          <div><div class="eyebrow">Ingresos del hogar</div><div class="kpi-val text-3xl" id="flowTotal"></div></div>
+          <div class="text-sm text-muted" id="flowNote"></div>
+        </div>
+        <div class="flex h-12 rounded-lg overflow-hidden gap-[3px]" id="flow"></div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4" id="flowLegend"></div>
+      </div>
+
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpis"></div>
+
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="card lg:col-span-3 min-w-0">
+          <h2 class="h2">Diagnóstico</h2>
+          <div class="flex flex-col divide-y divide-line" id="diag"></div>
+        </div>
+        <div class="card lg:col-span-2 min-w-0">
+          <h2 class="h2">Plan de rescate</h2>
+          <div class="flex flex-col gap-1" id="checklist"></div>
+          <div class="mt-4 pt-4 border-t border-line">
+            <label for="cfg-sobraReal" class="eyebrow block mb-1.5">¿Cuánto les sobra al final del mes?</label>
+            <input type="number" step="1000" min="0" class="inp" id="cfg-sobraReal" data-cfg="sobraReal">
+            <p class="text-xs text-muted mt-2" id="fugaTxt"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRESUPUESTO -->
+    <section data-view="presupuesto" class="hidden flex-col gap-6">
+      <header><div class="eyebrow">Mensual</div><h1 class="font-display text-3xl font-bold mt-1">Ingresos y gastos fijos</h1></header>
+      <div class="grid lg:grid-cols-2 gap-6">
+        <div class="card min-w-0">
+          <h2 class="h2">Ingresos</h2>
+          <div class="overflow-x-auto"><table class="tbl"><thead><tr><th>Fuente</th><th class="num">Valor</th><th class="w-8"></th></tr></thead>
+            <tbody id="body-ingresos"></tbody><tfoot><tr><td>Total</td><td class="num" id="ingTot"></td><td></td></tr></tfoot></table></div>
+          <button class="btn mt-4" data-add="ingresos">+ Agregar ingreso</button>
+        </div>
+        <div class="card min-w-0">
+          <h2 class="h2">Distribución de los gastos fijos</h2>
+          <div class="flex flex-wrap items-center gap-6">
+            <svg id="donut" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Gastos fijos por concepto" class="max-w-full"></svg>
+            <ul id="donutLegend" class="flex-1 min-w-[160px] flex flex-col gap-1.5 text-sm"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="card min-w-0">
+        <h2 class="h2">Gastos fijos</h2>
+        <div class="overflow-x-auto"><table class="tbl"><thead><tr><th>Concepto</th><th class="num">Valor mensual</th><th class="num">% del ingreso</th><th class="w-8"></th></tr></thead>
+          <tbody id="body-fijos"></tbody>
+          <tfoot>
+            <tr><td>Total gastos fijos</td><td class="num" id="fijTot"></td><td class="num" id="fijPct"></td><td></td></tr>
+            <tr><td>Dinero libre (antes de deudas y salidas)</td><td class="num text-good" id="libTot"></td><td class="num" id="libPct"></td><td></td></tr>
+          </tfoot></table></div>
+        <button class="btn mt-4" data-add="fijos">+ Agregar gasto fijo</button>
+      </div>
+    </section>
+
+    <!-- DEUDAS -->
+    <section data-view="deudas" class="hidden flex-col gap-6">
+      <header><div class="eyebrow">Tarjetas de crédito</div><h1 class="font-display text-3xl font-bold mt-1">Deudas y plan de pago</h1></header>
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="card lg:col-span-3 min-w-0">
+          <h2 class="h2">Saldos</h2>
+          <div class="overflow-x-auto"><table class="tbl"><thead><tr><th>Deuda</th><th>Moneda</th><th class="num">Saldo</th><th class="num">Interés % mes</th><th class="num">En COP</th><th></th></tr></thead>
+            <tbody id="body-deudas"></tbody><tfoot><tr><td colspan="4">Total deuda</td><td class="num text-bad" id="deuTot"></td><td></td></tr></tfoot></table></div>
+          <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+            <button class="btn" data-add="deudas">+ Agregar deuda</button>
+            <label class="flex items-center gap-2 text-sm text-muted" for="cfg-trm">TRM (COP por USD)
+              <input type="number" step="10" class="inp w-28" id="cfg-trm" data-cfg="trm"></label>
+          </div>
+          <p class="text-xs text-muted mt-3">El orden de la tabla es el orden de pago (↑ ↓). Primero va la deuda en dólares para no quedar expuestos a la subida del dólar.</p>
+        </div>
+        <div class="card lg:col-span-2 min-w-0 flex flex-col gap-4">
+          <h2 class="h2 mb-0">Parámetros</h2>
+          <div><label for="cfg-salTope" class="eyebrow block mb-1.5">Tope de salidas durante el plan</label>
+            <input type="number" step="1000" class="inp" id="cfg-salTope" data-cfg="salTope"></div>
+          <div><label for="cfg-salPost" class="eyebrow block mb-1.5">Salidas cuando ya no haya deudas</label>
+            <input type="number" step="1000" class="inp" id="cfg-salPost" data-cfg="salPost"></div>
+          <div class="rounded-lg bg-accentsoft p-3 text-sm" id="planInfo"></div>
+          <div class="rounded-lg bg-badsoft p-3 text-sm" id="golpeInfo"></div>
+        </div>
+      </div>
+      <div class="card min-w-0">
+        <h2 class="h2">Cronograma</h2>
+        <ol class="relative flex flex-col gap-0" id="cronograma"></ol>
+      </div>
+    </section>
+
+    <!-- REGISTRO -->
+    <section data-view="registro" class="hidden flex-col gap-6">
+      <header class="flex flex-wrap items-end justify-between gap-3">
+        <div><div class="eyebrow">Salidas, domicilios y gastos hormiga</div><h1 class="font-display text-3xl font-bold mt-1">Registro de gastos</h1></div>
+        <label class="flex items-center gap-2 text-sm text-muted" for="mesSel">Mes <input type="month" id="mesSel" class="inp w-auto"></label>
+      </header>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="regKpis"></div>
+      <form id="gForm" class="card grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 items-end">
+        <label class="flex flex-col gap-1.5" for="gFecha"><span class="eyebrow">Fecha</span><input type="date" id="gFecha" class="inp" required></label>
+        <label class="flex flex-col gap-1.5 col-span-2 md:col-span-1" for="gDesc"><span class="eyebrow">Descripción</span><input type="text" id="gDesc" class="inp" placeholder="Ej: domicilio pizza" required></label>
+        <label class="flex flex-col gap-1.5" for="gCat"><span class="eyebrow">Categoría</span><select id="gCat" class="inp"></select></label>
+        <label class="flex flex-col gap-1.5" for="gMedio"><span class="eyebrow">Medio de pago</span><select id="gMedio" class="inp"><option>Efectivo</option><option>Débito / transferencia</option><option>Tarjeta de crédito</option></select></label>
+        <label class="flex flex-col gap-1.5" for="gValor"><span class="eyebrow">Valor</span><input type="number" id="gValor" class="inp" min="0" step="100" required></label>
+        <button class="btn btn-pri justify-center h-[34px]" type="submit">Registrar gasto</button>
+      </form>
+      <div class="grid lg:grid-cols-2 gap-6">
+        <div class="card min-w-0"><h2 class="h2">Por categoría</h2><div id="catBars" class="flex flex-col gap-3"></div></div>
+        <div class="card min-w-0"><h2 class="h2">Por semana</h2><div id="weekBars" class="flex flex-col gap-3"></div></div>
+      </div>
+      <div class="card min-w-0">
+        <h2 class="h2">Movimientos</h2>
+        <div class="overflow-x-auto"><table class="tbl"><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th class="num">Valor</th><th></th></tr></thead><tbody id="gBody"></tbody></table></div>
+        <p id="gEmpty" class="text-sm text-muted text-center py-6"></p>
+      </div>
+    </section>
+
+    <!-- METAS -->
+    <section data-view="metas" class="hidden flex-col gap-6">
+      <header><div class="eyebrow">Después de las deudas</div><h1 class="font-display text-3xl font-bold mt-1">Ahorro y metas</h1></header>
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="card lg:col-span-2 min-w-0 flex flex-col gap-4">
+          <h2 class="h2 mb-0">Fondo de emergencias</h2>
+          <div><label for="cfg-ahorro" class="eyebrow block mb-1.5">Ahorro guardado hoy</label><input type="number" step="1000" class="inp" id="cfg-ahorro" data-cfg="ahorro"></div>
+          <div><label for="cfg-metaMeses" class="eyebrow block mb-1.5">Meta: meses de gastos fijos cubiertos</label><input type="number" step="1" min="1" max="12" class="inp" id="cfg-metaMeses" data-cfg="metaMeses"></div>
+          <div>
+            <div class="flex justify-between text-sm"><b id="fondoTxt" class="tabular-nums"></b><span id="fondoPct" class="text-muted tabular-nums"></span></div>
+            <div class="bar mt-2"><i id="fondoBar"></i></div>
+          </div>
+          <p class="text-sm text-muted" id="fondoProy"></p>
+        </div>
+        <div class="card lg:col-span-3 min-w-0">
+          <h2 class="h2">Ahorro acumulado · próximos 12 meses</h2>
+          <svg id="proy" viewBox="0 0 520 220" class="w-full h-auto" role="img" aria-label="Proyección del ahorro acumulado"></svg>
+          <p class="text-xs text-muted mt-2">Lo que sobra cada mes después de fijos, pagos de deuda y salidas, siguiendo el plan.</p>
+        </div>
+      </div>
+      <div class="card min-w-0">
+        <h2 class="h2">Preguntas para ajustar el plan al centavo</h2>
+        <div class="grid md:grid-cols-2 gap-4">
+          <label class="flex flex-col gap-1.5" for="cfg-q1"><span class="text-sm">¿La maestría ($1.800.000) se paga de contado o está diferida con intereses?</span>
+            <select id="cfg-q1" data-cfg="q1" class="inp"><option value="">Sin responder</option><option>De contado / sin intereses</option><option>Diferida con intereses</option><option>Crédito educativo</option></select></label>
+          <label class="flex flex-col gap-1.5" for="cfg-q2"><span class="text-sm">¿Las tarjetas tienen compras a una sola cuota o diferidas con intereses?</span>
+            <select id="cfg-q2" data-cfg="q2" class="inp"><option value="">Sin responder</option><option>Una sola cuota</option><option>Diferidas con intereses</option><option>Mixto</option></select></label>
+        </div>
+        <p class="text-xs text-muted mt-3">Si hay cuotas con intereses, escriban la tasa mensual en <b>Deudas y plan</b> y el cronograma la incluye.</p>
+      </div>
+    </section>
+
+    <!-- Acciones en móvil -->
+    <div class="lg:hidden mt-8 pt-6 border-t border-line flex flex-wrap items-center gap-2">
+      <span id="statusM" class="text-xs text-muted mr-auto"></span>
+      <button class="btn" onclick="document.getElementById('exportBtn').click()">Exportar</button>
+      <button class="btn" onclick="document.getElementById('importFile').click()">Importar</button>
+      <button class="btn" onclick="document.getElementById('resetBtn').click()">Restablecer</button>
+    </div>
+  </main>
+</div>
+
+<script>
+const CATS=['Salidas / restaurantes','Domicilios','Entretenimiento','Compras','Transporte','Gastos hormiga','Otros'];
+const COLORS=['--c1','--c2','--c3','--c4','--c5','--c6','--c7'];
+const NUM_CFG=['trm','salTope','salPost','sobraReal','ahorro','metaMeses'];
+const STEPS=[
+  ['tope','Techo a las salidas: máximo {tope} al mes ({semana} por semana para los dos).'],
+  ['congelar','Congelar las tarjetas: guardarlas y borrarlas de las apps de domicilios y compras por 60 días.'],
+  ['debito','Pagar todo en efectivo o débito / transferencia.'],
+  ['m1','Mes 1: pagar la deuda en dólares completa y abonar a la Tarjeta 1.'],
+  ['m2','Mes 2: liquidar la Tarjeta 1 y pagar completa la Tarjeta 2.'],
+  ['fondo','Guardar el primer millón para el fondo de emergencias.'],
+  ['libre','Mes 3 en adelante: subir salidas a $1,2M – $1,5M y ahorrar el resto.']
+];
+
+let S={config:{},ingresos:[],fijos:[],deudas:[],gastos:[],pasos:{}};
+let pendientes=0, online=false;
+
+const $=id=>document.getElementById(id);
+const fmt=new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0});
+const m=v=>fmt.format(Math.round(v||0));
+const pct=(a,b)=>b?((a/b)*100).toLocaleString('es-CO',{maximumFractionDigits:1})+'%':'0%';
+const sumV=a=>a.reduce((s,x)=>s+(+x.valor||0),0);
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const C=()=>S.config;
+const debtCOP=d=>d.moneda==='USD'?(+d.saldo||0)*C().trm:(+d.saldo||0);
+
+/* ---------- API ---------- */
+function setStatus(){
+  const [txt,col]=!online?['Sin conexión con SQLite','--bad']:pendientes?['Guardando…','--warn']:['Guardado en SQLite','--good'];
+  $('status').innerHTML=`<span class="legend-dot" style="background:var(${col})"></span>${txt}`;
+  $('statusM').textContent=txt;
+  $('offline').classList.toggle('hidden',online);
+}
+async function api(method,url,body){
+  pendientes++;setStatus();
+  try{
+    const r=await fetch('/api/'+url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+    if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.statusText);
+    online=true;return await r.json();
+  }catch(e){online=false;console.error(e);throw e;}
+  finally{pendientes--;setStatus();}
+}
+const timers={};
+function guardarLuego(key,fn){clearTimeout(timers[key]);timers[key]=setTimeout(()=>fn().catch(()=>{}),450);}
+
+function normalizar(d){
+  NUM_CFG.forEach(k=>d.config[k]=parseFloat(d.config[k])||0);
+  d.deudas.sort((a,b)=>a.orden-b.orden||a.id-b.id);
+  S=d;
+}
+
+/* ---------- Cálculos ---------- */
+function calc(){
+  const ing=sumV(S.ingresos), fij=sumV(S.fijos), libre=ing-fij;
+  const deuda=S.deudas.reduce((s,d)=>s+debtCOP(d),0);
+  return {ing,fij,libre,deuda,pagoMes:Math.max(0,libre-C().salTope)};
+}
+function plan(){
+  const c=calc(), bal=S.deudas.map(d=>({n:d.nombre,b:debtCOP(d),r:(+d.interes||0)/100}));
+  const out=[]; let ahorro=C().ahorro||0;
+  for(let k=1;k<=36;k++){
+    if(!bal.some(x=>x.b>0.5)||c.pagoMes<=0)break;
+    let disp=c.pagoMes; const pagos=[];
+    bal.forEach(x=>{if(x.b>0)x.b+=x.b*x.r;});
+    bal.forEach(x=>{if(x.b>0.5&&disp>0){const p=Math.min(x.b,disp);x.b-=p;disp-=p;pagos.push({n:x.n,p,queda:x.b});}});
+    const totPag=pagos.reduce((s,x)=>s+x.p,0), sobrante=c.libre-totPag, ahorroMes=Math.max(0,sobrante-C().salTope);
+    ahorro+=ahorroMes;
+    out.push({k,pagos,totPag,sobrante,ahorroMes,ahorro,restante:bal.reduce((s,x)=>s+Math.max(0,x.b),0)});
+  }
+  return out;
+}
+
+/* ---------- Render: listas editables ---------- */
+const xBtn=(t,id)=>`<button class="btn-x" data-del="${t}" data-id="${id}" title="Eliminar" aria-label="Eliminar">✕</button>`;
+function renderLists(){
+  for(const t of ['ingresos','fijos']){
+    $('body-'+t).innerHTML=S[t].map(x=>`<tr>
+      <td><input class="inp" aria-label="Nombre" value="${esc(x.nombre)}" data-t="${t}" data-id="${x.id}" data-k="nombre"></td>
+      <td class="num"><input class="inp min-w-[120px]" type="number" step="1000" aria-label="Valor" value="${x.valor}" data-t="${t}" data-id="${x.id}" data-k="valor"></td>
+      ${t==='fijos'?`<td class="num text-muted" data-pct="${x.id}"></td>`:''}
+      <td class="num">${xBtn(t,x.id)}</td></tr>`).join('');
+  }
+  $('body-deudas').innerHTML=S.deudas.map((x,i)=>`<tr>
+    <td><input class="inp min-w-[130px]" aria-label="Nombre" value="${esc(x.nombre)}" data-t="deudas" data-id="${x.id}" data-k="nombre"></td>
+    <td><select class="inp w-20" aria-label="Moneda" data-t="deudas" data-id="${x.id}" data-k="moneda"><option ${x.moneda==='COP'?'selected':''}>COP</option><option ${x.moneda==='USD'?'selected':''}>USD</option></select></td>
+    <td class="num"><input class="inp min-w-[110px]" type="number" step="1" aria-label="Saldo" value="${x.saldo}" data-t="deudas" data-id="${x.id}" data-k="saldo"></td>
+    <td class="num"><input class="inp w-20" type="number" step="0.1" min="0" aria-label="Interés mensual" value="${x.interes}" data-t="deudas" data-id="${x.id}" data-k="interes"></td>
+    <td class="num whitespace-nowrap" data-dcop="${x.id}"></td>
+    <td class="num whitespace-nowrap">
+      <button class="btn-x" data-move="-1" data-i="${i}" title="Pagar antes" aria-label="Subir prioridad" ${i===0?'disabled':''}>↑</button>
+      <button class="btn-x" data-move="1" data-i="${i}" title="Pagar después" aria-label="Bajar prioridad" ${i===S.deudas.length-1?'disabled':''}>↓</button>
+      ${xBtn('deudas',x.id)}</td></tr>`).join('');
+}
+function renderInputs(){
+  document.querySelectorAll('[data-cfg]').forEach(el=>el.value=C()[el.dataset.cfg]??'');
+}
+
+/* ---------- Render: todo lo calculado ---------- */
+function renderComputed(){
+  const c=calc(), P=plan(), cf=C();
+
+  // Flujo del mes
+  const segs=[
+    ['Gastos fijos',c.fij,'--c1'],
+    ['Pago de deuda',Math.min(c.pagoMes,c.deuda),'--c5'],
+    ['Salidas (tope)',Math.min(cf.salTope,Math.max(0,c.libre)),'--c3'],
+  ];
+  segs.push(['Ahorro',Math.max(0,c.ing-segs.reduce((s,x)=>s+x[1],0)),'--c6']);
+  $('flowTotal').textContent=m(c.ing);
+  $('flowNote').textContent=c.deuda>0?'Distribución durante el plan de pago':'Distribución sin deudas';
+  $('flow').innerHTML=segs.filter(s=>s[1]>0).map(s=>`<div class="flow-seg h-full" style="flex-grow:${s[1]};background:var(${s[2]})" title="${s[0]}: ${m(s[1])}"></div>`).join('');
+  $('flowLegend').innerHTML=segs.map(s=>`<div><div class="flex items-center gap-2 text-xs text-muted"><span class="legend-dot" style="background:var(${s[2]})"></span>${s[0]}</div>
+    <div class="font-semibold tabular-nums mt-0.5">${m(s[1])} <span class="text-muted font-normal text-xs">${pct(s[1],c.ing)}</span></div></div>`).join('');
+
+  // KPIs
+  const fijPct=c.ing?c.fij/c.ing:0;
+  const kpi=(l,v,s,cl='')=>`<div class="card"><div class="eyebrow">${l}</div><div class="kpi-val ${cl}">${v}</div><div class="text-xs text-muted mt-1">${s}</div></div>`;
+  $('kpis').innerHTML=
+    kpi('Gastos fijos',m(c.fij),pct(c.fij,c.ing)+' del ingreso',fijPct<=.6?'':'text-warn')+
+    kpi('Dinero libre',m(c.libre),'Antes de deudas y salidas',c.libre>0?'text-good':'text-bad')+
+    kpi('Deuda en tarjetas',m(c.deuda),`TRM ${m(cf.trm)} por dólar`,c.deuda>0?'text-bad':'text-good')+
+    kpi('Sin deudas en',P.length?`${P.length} ${P.length===1?'mes':'meses'}`:'—',c.deuda>0?`${m(c.pagoMes)} al mes a la deuda`:'Ya no tienen deudas');
+
+  // Diagnóstico
+  const fuga=Math.max(0,c.libre-(cf.sobraReal||0)), falta=c.deuda-c.libre;
+  const item=(tone,chip,title,body)=>`<div class="py-3 first:pt-0 last:pb-0 flex gap-3 items-start">
+    <span class="chip bg-${tone}soft text-${tone} shrink-0 mt-0.5 w-[84px] justify-center">${chip}</span>
+    <div class="min-w-0"><div class="font-semibold">${title}</div><div class="text-sm text-muted mt-0.5">${body}</div></div></div>`;
+  let d=fijPct<=.6
+    ?item('good','Saludable',`Gastos fijos en ${pct(c.fij,c.ing)}`,`El problema no son los ingresos ni los fijos: quedan ${m(c.libre)} libres cada mes.`)
+    :item('warn','Alto',`Gastos fijos en ${pct(c.fij,c.ing)}`,'Revisen qué gastos fijos se pueden reducir.');
+  if(fuga>0)d+=item('bad','Fuga 1','Salidas y gastos hormiga',`Se van ≈ ${m(fuga)} al mes en salidas, domicilios, entretenimiento y compras sin registrar (${pct(fuga,c.ing)} de lo que ganan).`);
+  if(c.deuda>0)d+=item('bad','Fuga 2','La trampa de las tarjetas',`Deben ${m(c.deuda)}. `+(falta>0?`Pagar todo de golpe no alcanza: faltarían ${m(falta)} y quedarían en $0 para vivir, volviendo a usar la tarjeta.`:'Podrían pagar todo en un mes, pero quedarían con muy poco para vivir.'));
+  d+=c.deuda>0
+    ?item('warn','Plan',`Salir de deudas en ${P.length} ${P.length===1?'mes':'meses'}`,`Tope de salidas de ${m(cf.salTope)} y ${m(c.pagoMes)} mensuales a las tarjetas.`)
+    :item('good','Libres','Sin deudas',`Salidas de ${m(cf.salPost)} y ahorro de ${m(c.libre-cf.salPost)} al mes.`);
+  $('diag').innerHTML=d;
+  $('fugaTxt').innerHTML=fuga>0?`Gasto variable sin explicar: <b class="text-bad">${m(fuga)}</b> al mes.`:'No hay fuga estimada.';
+
+  // Checklist
+  $('checklist').innerHTML=STEPS.map(([k,t])=>{
+    const done=!!S.pasos[k], txt=t.replace('{tope}',m(cf.salTope)).replace('{semana}',m(cf.salTope/4));
+    return `<label class="flex gap-3 items-start rounded-lg px-2 py-2 hover:bg-surface2 cursor-pointer">
+      <input type="checkbox" class="mt-0.5 h-4 w-4 accent-[var(--accent)] shrink-0" data-paso="${k}" ${done?'checked':''}>
+      <span class="text-sm ${done?'line-through text-muted':''}">${txt}</span></label>`;}).join('');
+
+  // Presupuesto
+  $('ingTot').textContent=m(c.ing);
+  S.fijos.forEach(x=>{const e=document.querySelector(`[data-pct="${x.id}"]`);if(e)e.textContent=pct(x.valor,c.ing);});
+  $('fijTot').textContent=m(c.fij);$('fijPct').textContent=pct(c.fij,c.ing);
+  $('libTot').textContent=m(c.libre);$('libPct').textContent=pct(c.libre,c.ing);
+  $('libTot').className='num '+(c.libre>=0?'text-good':'text-bad');
+  donut();
+
+  // Deudas
+  S.deudas.forEach(x=>{const e=document.querySelector(`[data-dcop="${x.id}"]`);if(e)e.textContent=m(debtCOP(x));});
+  $('deuTot').textContent=m(c.deuda);
+  $('planInfo').innerHTML=`<b class="block">${m(c.pagoMes)} al mes para la deuda</b><span class="text-muted">Dinero libre ${m(c.libre)} menos salidas ${m(cf.salTope)} (≈ ${m(cf.salTope/4)} por semana).</span>`;
+  $('golpeInfo').classList.toggle('hidden',!(c.deuda>c.libre));
+  $('golpeInfo').innerHTML=`<b class="block">¿Pagar todo de golpe?</b><span class="text-muted">Necesitarían ${m(c.deuda)} y solo hay ${m(c.libre)} libres: faltan ${m(c.deuda-c.libre)} y quedarían en $0 para vivir.</span>`;
+  let h='';
+  if(c.pagoMes<=0&&c.deuda>0)h+=`<li class="rounded-lg bg-badsoft p-3 text-sm"><b>No queda dinero para la deuda.</b> Bajen el tope de salidas o los gastos fijos.</li>`;
+  const paso=(label,tone,title,lines,last)=>`<li class="relative pl-8 ${last?'':'pb-6'}">
+    ${last?'':'<span class="absolute left-[11px] top-6 bottom-0 w-px bg-line"></span>'}
+    <span class="absolute left-0 top-0 h-6 w-6 rounded-full grid place-items-center text-[11px] font-bold bg-${tone}soft text-${tone}">${label}</span>
+    <div class="font-semibold leading-6">${title}</div><ul class="mt-1.5 flex flex-col gap-1 text-sm">${lines}</ul></li>`;
+  P.forEach(mo=>{
+    const lines=mo.pagos.map(p=>`<li class="flex flex-wrap justify-between gap-x-4"><span>${esc(p.n)}</span><span class="tabular-nums"><b>${m(p.p)}</b> ${p.queda<0.5?'<span class="chip bg-goodsoft text-good ml-1">Pagada</span>':`<span class="text-muted">· queda ${m(p.queda)}</span>`}</span></li>`).join('')+
+      `<li class="flex justify-between gap-4 text-muted"><span>Salidas del mes</span><span class="tabular-nums">${m(cf.salTope)}</span></li>`+
+      (mo.ahorroMes>0?`<li class="flex justify-between gap-4"><span>Al fondo de emergencias</span><b class="tabular-nums text-good">${m(mo.ahorroMes)}</b></li>`:'');
+    h+=paso(mo.k,'accent',`Mes ${mo.k}${mo.restante<0.5?' · ¡deudas eliminadas!':''}`,lines,false);
+  });
+  h+=paso('∞','good',`Mes ${P.length+1} en adelante · sin deudas`,
+    `<li class="flex justify-between gap-4"><span>Salidas sin culpa</span><span class="tabular-nums">${m(cf.salPost)}</span></li>
+     <li class="flex justify-between gap-4"><span>Ahorro mensual</span><b class="tabular-nums text-good">${m(c.libre-cf.salPost)}</b></li>`,true);
+  $('cronograma').innerHTML=h;
+
+  // Metas
+  const meta=c.fij*(cf.metaMeses||3), proj=projection(P,c);
+  $('fondoTxt').textContent=`${m(cf.ahorro)} de ${m(meta)}`;
+  $('fondoPct').textContent=pct(Math.min(cf.ahorro,meta),meta);
+  $('fondoBar').style.width=Math.min(100,(cf.ahorro/meta)*100||0)+'%';
+  const idx=proj.findIndex(v=>v>=meta);
+  $('fondoProy').innerHTML=cf.ahorro>=meta?'¡Meta cumplida!':idx>=0?`Siguiendo el plan completan la meta en el <b class="text-ink">mes ${idx+1}</b>.`:'Con el plan actual la meta no se cumple en 12 meses: ajusten salidas o la meta.';
+  chart(proj,meta);
+
+  renderGastos();
+}
+
+function projection(P,c){
+  const out=[];let a=C().ahorro||0;
+  for(let k=0;k<12;k++){a=k<P.length?P[k].ahorro:a+Math.max(0,c.libre-C().salPost);out.push(a);}
+  return out;
+}
+
+function donut(){
+  const tot=sumV(S.fijos)||1,R=92,r=62,cx=100,cy=100;let a=-Math.PI/2,p='';
+  const pt=(rad,t)=>`${cx+rad*Math.cos(t)} ${cy+rad*Math.sin(t)}`;
+  S.fijos.forEach((x,i)=>{
+    const ang=(+x.valor||0)/tot*Math.PI*2;if(ang<=0)return;
+    const a2=a+ang-0.0001,lg=ang>Math.PI?1:0;
+    p+=`<path d="M${pt(R,a)}A${R} ${R} 0 ${lg} 1 ${pt(R,a2)}L${pt(r,a2)}A${r} ${r} 0 ${lg} 0 ${pt(r,a)}Z" fill="${cssv(COLORS[i%COLORS.length])}" stroke="${cssv('--surface')}" stroke-width="2"><title>${esc(x.nombre)}: ${m(x.valor)}</title></path>`;
+    a+=ang;
+  });
+  p+=`<text x="100" y="94" text-anchor="middle" font-size="12" fill="${cssv('--muted')}">Fijos al mes</text>
+      <text x="100" y="114" text-anchor="middle" font-size="16" font-weight="700" fill="${cssv('--ink')}" style="font-family:var(--f-display)">${m(sumV(S.fijos))}</text>`;
+  $('donut').innerHTML=p;
+  $('donutLegend').innerHTML=S.fijos.map((x,i)=>`<li class="flex items-center gap-2"><span class="legend-dot" style="background:var(${COLORS[i%COLORS.length]})"></span><span class="flex-1 min-w-0 truncate">${esc(x.nombre)}</span><span class="tabular-nums text-muted">${pct(x.valor,tot)}</span></li>`).join('');
+}
+
+function chart(vals,meta){
+  const W=520,H=220,L=64,R=16,T=16,B=28,max=Math.max(meta,...vals,1)*1.08;
+  const x=i=>L+i*(W-L-R)/(vals.length-1), y=v=>H-B-(v/max)*(H-T-B);
+  const mu=cssv('--muted'),ln=cssv('--line'),ac=cssv('--accent'),gd=cssv('--good');
+  const short=v=>v>=1e6?(v/1e6).toLocaleString('es-CO',{maximumFractionDigits:1})+' M':Math.round(v/1e3)+' mil';
+  let s='';
+  for(let g=0;g<=4;g++){const v=max/1.08*g/4;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${ln}"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="${mu}">$${short(v)}</text>`;}
+  const pts=vals.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+  s+=`<polygon points="${x(0)},${y(0)} ${pts} ${x(vals.length-1)},${y(0)}" fill="${ac}" fill-opacity=".14"/>`+
+     `<polyline points="${pts}" fill="none" stroke="${ac}" stroke-width="2.5" stroke-linejoin="round"/>`+
+     `<line x1="${L}" x2="${W-R}" y1="${y(meta)}" y2="${y(meta)}" stroke="${gd}" stroke-dasharray="5 4" stroke-width="1.5"/>`+
+     `<text x="${W-R}" y="${y(meta)-6}" text-anchor="end" font-size="11" font-weight="600" fill="${gd}">Meta fondo</text>`;
+  vals.forEach((v,i)=>{
+    s+=`<circle cx="${x(i)}" cy="${y(v)}" r="${i===vals.length-1?5:3}" fill="${ac}"><title>Mes ${i+1}: ${m(v)}</title></circle>`;
+    s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="11" fill="${mu}">${i+1}</text>`;
+  });
+  const lv=vals[vals.length-1];
+  s+=`<text x="${x(vals.length-1)-8}" y="${y(lv)-10}" text-anchor="end" font-size="12" font-weight="700" fill="${cssv('--ink')}">${m(lv)}</text>`;
+  $('proy').innerHTML=s;
+}
+
+/* ---------- Registro ---------- */
+function renderGastos(){
+  const mes=$('mesSel').value;
+  const list=S.gastos.filter(g=>g.fecha.startsWith(mes)).sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.id-a.id);
+  const tot=list.reduce((s,g)=>s+g.valor,0), tc=list.filter(g=>g.medio==='Tarjeta de crédito').reduce((s,g)=>s+g.valor,0);
+  const tope=C().salTope||0, rest=tope-tot, sem=tope/4;
+  const kpi=(l,v,s,cl='')=>`<div class="card"><div class="eyebrow">${l}</div><div class="kpi-val ${cl}">${v}</div><div class="text-xs text-muted mt-1">${s}</div></div>`;
+  $('regKpis').innerHTML=
+    kpi('Gastado en el mes',m(tot),`${list.length} ${list.length===1?'movimiento':'movimientos'}`)+
+    kpi('Tope de salidas',m(tope),`${m(sem)} por semana`)+
+    kpi('Disponible',m(rest),rest>=0?`${pct(tot,tope)} del tope usado`:'Tope superado',rest>=0?'text-good':'text-bad')+
+    kpi('Con tarjeta de crédito',m(tc),tc>0?'Deberían estar congeladas':'Cero tarjeta este mes',tc>0?'text-bad':'text-good');
+  const bars=(rows,max)=>rows.map(([n,v,lim])=>`<div><div class="flex justify-between gap-3 text-sm mb-1"><span class="min-w-0 truncate">${esc(n)}</span><b class="tabular-nums">${m(v)}</b></div>
+    <div class="bar"><i style="width:${Math.min(100,v/max*100)}%;background:var(${lim&&v>lim?'--bad':'--accent'})"></i></div></div>`).join('');
+  const empty='<p class="text-sm text-muted">Sin gastos registrados en este mes.</p>';
+  const byCat=CATS.map(c=>[c,list.filter(g=>g.categoria===c).reduce((s,g)=>s+g.valor,0)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  $('catBars').innerHTML=byCat.length?bars(byCat,Math.max(...byCat.map(x=>x[1]))):empty;
+  const wk=[0,0,0,0,0];list.forEach(g=>{wk[Math.min(4,Math.floor((+g.fecha.slice(8,10)-1)/7))]+=g.valor;});
+  const wkRows=wk.map((v,i)=>[i<4?`Semana ${i+1} (días ${i*7+1}–${i*7+7})`:'Días 29 en adelante',v,sem]).filter((r,i)=>i<4||r[1]>0);
+  $('weekBars').innerHTML=list.length?bars(wkRows,Math.max(sem,...wk))+`<p class="text-xs text-muted">En rojo: semanas que pasan el límite de ${m(sem)}.</p>`:empty;
+  $('gBody').innerHTML=list.map(g=>`<tr><td class="whitespace-nowrap">${g.fecha}</td><td>${esc(g.descripcion)}</td><td class="text-muted">${esc(g.categoria)}</td>
+    <td>${g.medio==='Tarjeta de crédito'?'<span class="chip bg-badsoft text-bad">Tarjeta</span>':`<span class="text-muted">${esc(g.medio)}</span>`}</td>
+    <td class="num font-semibold">${m(g.valor)}</td><td class="num">${xBtn('gastos',g.id)}</td></tr>`).join('');
+  $('gEmpty').textContent=list.length?'':'Aún no hay movimientos este mes. Registren cada salida, domicilio o compra para encontrar la fuga.';
+  $('gEmpty').classList.toggle('hidden',!!list.length);
+}
+
+/* ---------- Eventos ---------- */
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.t){
+    const row=S[t.dataset.t].find(r=>r.id==t.dataset.id), k=t.dataset.k;
+    row[k]=['valor','saldo','interes'].includes(k)?(parseFloat(t.value)||0):t.value;
+    renderComputed();
+    guardarLuego(`${t.dataset.t}-${row.id}-${k}`,()=>api('PUT',`${t.dataset.t}/${row.id}`,{[k]:row[k]}));
+  }else if(t.dataset.cfg){
+    const k=t.dataset.cfg; S.config[k]=NUM_CFG.includes(k)?(parseFloat(t.value)||0):t.value;
+    renderComputed();
+    guardarLuego('cfg-'+k,()=>api('PUT','config',{[k]:S.config[k]}));
+  }
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.paso){S.pasos[t.dataset.paso]=t.checked;renderComputed();api('PUT','pasos/'+t.dataset.paso,{hecho:t.checked}).catch(()=>{});}
+  if(t.id==='mesSel')renderGastos();
+});
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  try{
+    if(b.dataset.tab)return showTab(b.dataset.tab);
+    if(b.dataset.add){
+      const t=b.dataset.add, n=S[t].length;
+      const row=await api('POST',t,t==='deudas'?{nombre:'Nueva deuda',moneda:'COP',saldo:0,interes:0,orden:n}:{nombre:'Nuevo concepto',valor:0,orden:n});
+      S[t].push(row);renderLists();renderComputed();
+      document.querySelector(`#body-${t} tr:last-child input`)?.select();
+    }
+    if(b.dataset.del){
+      const t=b.dataset.del,id=+b.dataset.id,row=S[t].find(r=>r.id===id);
+      if(!confirm(`¿Eliminar "${row.nombre||row.descripcion}"?`))return;
+      await api('DELETE',`${t}/${id}`);S[t]=S[t].filter(r=>r.id!==id);renderLists();renderComputed();
+    }
+    if(b.dataset.move){
+      const i=+b.dataset.i,j=i+(+b.dataset.move);if(j<0||j>=S.deudas.length)return;
+      [S.deudas[i],S.deudas[j]]=[S.deudas[j],S.deudas[i]];
+      S.deudas.forEach((d,o)=>d.orden=o);
+      renderLists();renderComputed();
+      await Promise.all([S.deudas[i],S.deudas[j]].map(d=>api('PUT','deudas/'+d.id,{orden:d.orden})));
+    }
+  }catch(err){}
+});
+$('gForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  try{
+    const row=await api('POST','gastos',{fecha:$('gFecha').value,descripcion:$('gDesc').value.trim(),categoria:$('gCat').value,medio:$('gMedio').value,valor:parseFloat($('gValor').value)||0});
+    S.gastos.push(row);$('mesSel').value=row.fecha.slice(0,7);
+    $('gDesc').value='';$('gValor').value='';$('gDesc').focus();renderComputed();
+  }catch(err){}
+});
+$('resetBtn').onclick=async()=>{
+  if(!confirm('¿Restablecer los datos iniciales del diagnóstico? Se borra también el registro de gastos.'))return;
+  try{normalizar(await api('POST','reset'));renderAll();}catch(err){}
+};
+$('exportBtn').onclick=()=>{
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
+  a.download=`finanzas-hogar-${new Date().toISOString().slice(0,10)}.json`;a.click();
+};
+$('importFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{normalizar(await api('POST','importar',JSON.parse(await f.text())));renderAll();}
+  catch(err){alert('No se pudo importar: el archivo no es una copia válida de Finanzas del Hogar.');}
+  e.target.value='';
+};
+function toggleTheme(){
+  const r=document.documentElement, dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme=dark?'light':'dark';try{localStorage.setItem('finanzas-tema',r.dataset.theme);}catch(e){}
+  renderComputed();
+}
+$('themeBtn').onclick=toggleTheme;$('themeBtn2').onclick=toggleTheme;
+try{const t=localStorage.getItem('finanzas-tema');if(t)document.documentElement.dataset.theme=t;}catch(e){}
+
+const VIEWS=['resumen','presupuesto','deudas','registro','metas'];
+function showTab(v){
+  if(!VIEWS.includes(v))v='resumen';
+  document.querySelectorAll('[data-view]').forEach(s=>{const on=s.dataset.view===v;s.classList.toggle('hidden',!on);s.classList.toggle('flex',on);});
+  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===v));
+  if(location.hash!=='#'+v)history.replaceState(null,'','#'+v);
+  window.scrollTo(0,0);
+}
+
+function renderAll(){renderLists();renderInputs();renderComputed();}
+
+/* ---------- Inicio ---------- */
+(async()=>{
+  const now=new Date(), iso=new Date(now-now.getTimezoneOffset()*6e4).toISOString();
+  $('gFecha').value=iso.slice(0,10);$('mesSel').value=iso.slice(0,7);
+  $('gCat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');
+  $('mesActual').textContent=now.toLocaleDateString('es-CO',{month:'long',year:'numeric'});
+  showTab(location.hash.slice(1));
+  try{normalizar(await api('GET','estado'));renderAll();}catch(e){setStatus();}
+})();
+</script>
+</body>
+</html>

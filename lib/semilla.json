@@ -1,0 +1,1126 @@
+{
+ "config": {
+  "hogar": "Hogar Jaime & María",
+  "trm": 3300.0,
+  "trm_referencia": 3900.0,
+  "ingreso_2028": 8050000.0,
+  "operativo_2028": 5702000.0,
+  "cuota_carro_2028": 1630000.0,
+  "nota_2028": "Cuota $1,08M + Op. $550k"
+ },
+ "periodos": [
+  {
+   "id": "2026-12",
+   "etiqueta": "Dic 2026",
+   "cobro": "Cobro 30 Nov"
+  },
+  {
+   "id": "2027-01",
+   "etiqueta": "Ene 2027",
+   "cobro": "Cobro 30 Dic"
+  },
+  {
+   "id": "2027-02",
+   "etiqueta": "Feb 2027",
+   "cobro": "Cobro 30 Ene"
+  },
+  {
+   "id": "2027-03",
+   "etiqueta": "Mar 2027",
+   "cobro": "Cobro 28 Feb"
+  },
+  {
+   "id": "2027-04",
+   "etiqueta": "Abr 2027",
+   "cobro": "Cobro 30 Mar"
+  },
+  {
+   "id": "2027-05",
+   "etiqueta": "May 2027",
+   "cobro": "Cobro 30 Abr"
+  },
+  {
+   "id": "2027-06",
+   "etiqueta": "Jun 2027",
+   "cobro": "Cobro 30 May"
+  },
+  {
+   "id": "2027-07",
+   "etiqueta": "Jul 2027",
+   "cobro": "Cobro 30 Jun + prima"
+  },
+  {
+   "id": "2027-08",
+   "etiqueta": "Ago 2027",
+   "cobro": "Cobro 30 Jul"
+  },
+  {
+   "id": "2027-09",
+   "etiqueta": "Sep 2027",
+   "cobro": "Cobro 30 Ago"
+  },
+  {
+   "id": "2027-10",
+   "etiqueta": "Oct 2027",
+   "cobro": "Cobro 30 Sep"
+  },
+  {
+   "id": "2027-11",
+   "etiqueta": "Nov 2027",
+   "cobro": "Cobro 30 Oct"
+  },
+  {
+   "id": "2027-12",
+   "etiqueta": "Dic 2027",
+   "cobro": "Cobro 30 Nov"
+  },
+  {
+   "id": "2028-01",
+   "etiqueta": "Ene 2028",
+   "cobro": "Cobro 30 Dic"
+  }
+ ],
+ "categorias": [
+  {
+   "nombre": "Ingresos Fijos",
+   "seccion": "ingreso",
+   "control": null
+  },
+  {
+   "nombre": "Ingresos Extra",
+   "seccion": "ingreso",
+   "control": null
+  },
+  {
+   "nombre": "Vivienda y Educación",
+   "seccion": "operativo",
+   "control": "Fijo"
+  },
+  {
+   "nombre": "Alimentación y Hogar",
+   "seccion": "operativo",
+   "control": "Semi-fijo"
+  },
+  {
+   "nombre": "Transporte y Salud",
+   "seccion": "operativo",
+   "control": "Fijo"
+  },
+  {
+   "nombre": "Suscripciones Digitales",
+   "seccion": "operativo",
+   "control": "Fijo"
+  },
+  {
+   "nombre": "Obligaciones Fijas",
+   "seccion": "operativo",
+   "control": "Fijo"
+  },
+  {
+   "nombre": "Ocio y Salidas",
+   "seccion": "operativo",
+   "control": "Flexible"
+  },
+  {
+   "nombre": "Cuidado Personal y Ropa",
+   "seccion": "operativo",
+   "control": "Flexible"
+  },
+  {
+   "nombre": "Eventos y Viajes",
+   "seccion": "evento",
+   "control": null
+  },
+  {
+   "nombre": "Pago Deudas Tarjetas",
+   "seccion": "deuda",
+   "control": null
+  },
+  {
+   "nombre": "Pago Deudas Créditos",
+   "seccion": "deuda",
+   "control": null
+  },
+  {
+   "nombre": "Ahorro y metas",
+   "seccion": "ahorro",
+   "control": null
+  }
+ ],
+ "rubros": [
+  {
+   "categoria": "Ingresos Fijos",
+   "nombre": "Sueldo Jaime",
+   "valores": [
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0,
+    2700000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Ingresos Fijos",
+   "nombre": "Sueldo María (Base 1)",
+   "valores": [
+    2800000.0,
+    3600000.0,
+    1050000.0,
+    1850000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0,
+    3600000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Ingresos Fijos",
+   "nombre": "Sueldo María (Base 2)",
+   "valores": [
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0,
+    1750000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Ingresos Extra",
+   "nombre": "Primas Semestrales (Jaime + María)",
+   "valores": [
+    0.0,
+    2775000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2775000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2775000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Vivienda y Educación",
+   "nombre": "Maestría",
+   "valores": [
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0,
+    1800000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Vivienda y Educación",
+   "nombre": "Arriendo / Casa",
+   "valores": [
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0,
+    700000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Vivienda y Educación",
+   "nombre": "Servicios Públicos (Luz, Agua, Gas)",
+   "valores": [
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0,
+    550000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Vivienda y Educación",
+   "nombre": "Internet (Jaime, María y Familia)",
+   "valores": [
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0,
+    300000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Alimentación y Hogar",
+   "nombre": "Mercado General del Mes",
+   "valores": [
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0,
+    750000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Alimentación y Hogar",
+   "nombre": "Almuerzos por fuera - María",
+   "valores": [
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0,
+    112000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Alimentación y Hogar",
+   "nombre": "Almuerzos por fuera - Jaime",
+   "valores": [
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0,
+    80000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Alimentación y Hogar",
+   "nombre": "Café",
+   "valores": [
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Alimentación y Hogar",
+   "nombre": "Tortas (2 und aprox.)",
+   "valores": [
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0,
+    28000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Transporte y Salud",
+   "nombre": "Combustible",
+   "valores": [
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0,
+    100000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Transporte y Salud",
+   "nombre": "Gimnasio",
+   "valores": [
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0,
+    90000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Transporte y Salud",
+   "nombre": "Transporte Adicional",
+   "valores": [
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Suscripciones Digitales",
+   "nombre": "YouTube Premium",
+   "valores": [
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0,
+    17000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Suscripciones Digitales",
+   "nombre": "iCloud - María",
+   "valores": [
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0,
+    13000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Suscripciones Digitales",
+   "nombre": "Spotify",
+   "valores": [
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0,
+    6000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Suscripciones Digitales",
+   "nombre": "iCloud - Jaime",
+   "valores": [
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0,
+    4000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Obligaciones Fijas",
+   "nombre": "Cuota Crédito Libre Inversión ($9,87M)",
+   "valores": [
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    260000.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Ocio y Salidas",
+   "nombre": "Salidas Fines de Semana",
+   "valores": [
+    300000.0,
+    300000.0,
+    300000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0,
+    500000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Ocio y Salidas",
+   "nombre": "Salidas Semana Hábil",
+   "valores": [
+    100000.0,
+    100000.0,
+    100000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0,
+    162000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Ocio y Salidas",
+   "nombre": "Mecatos y Dulces",
+   "valores": [
+    22000.0,
+    22000.0,
+    22000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0,
+    70000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Cuidado Personal y Ropa",
+   "nombre": "Cabello y Skincare",
+   "valores": [
+    100000.0,
+    100000.0,
+    100000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Cuidado Personal y Ropa",
+   "nombre": "Ropa - Jaime",
+   "valores": [
+    0.0,
+    0.0,
+    0.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0,
+    120000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Cuidado Personal y Ropa",
+   "nombre": "Barbería",
+   "valores": [
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0,
+    60000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Cuidado Personal y Ropa",
+   "nombre": "Uñas",
+   "valores": [
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0,
+    30000.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Eventos y Viajes",
+   "nombre": "Baby Shower Prima (Presupuesto + Regalo)",
+   "valores": [
+    400000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Eventos y Viajes",
+   "nombre": "Viaje 1 (Mediados de Abril 2027)",
+   "valores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2000000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Eventos y Viajes",
+   "nombre": "Viaje 2 (Octubre 2027 - Reservado en Jul)",
+   "valores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2000000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Pago Deudas Tarjetas",
+   "nombre": "TC 1 Bancolombia Clásica (Deuda USD)",
+   "valores": [
+    1338000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [
+    1
+   ],
+   "saldo_usd": 500.0
+  },
+  {
+   "categoria": "Pago Deudas Tarjetas",
+   "nombre": "TC 1 Bancolombia Clásica (COP + Compra $500k)",
+   "valores": [
+    0.0,
+    1738000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Pago Deudas Tarjetas",
+   "nombre": "TC 2 Bancolombia Amex Blu",
+   "valores": [
+    0.0,
+    1687000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Pago Deudas Créditos",
+   "nombre": "Mora Davivienda (Acuerdo Pago Único)",
+   "valores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    5300000.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  },
+  {
+   "categoria": "Pago Deudas Créditos",
+   "nombre": "Abonos Extra Capital Crédito Libre Inversión",
+   "valores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2500000.0,
+    2000000.0,
+    2000000.0,
+    2000000.0,
+    1300000.0,
+    0.0,
+    0.0
+   ],
+   "auto": [],
+   "saldo_usd": null
+  }
+ ],
+ "metas": [
+  {
+   "nombre": "Cuota inicial carro",
+   "detalle": "$8,5M + traspaso",
+   "objetivo": 9752000.0,
+   "periodo_objetivo": "2028-01",
+   "modo": "caja",
+   "ahorrado": 0
+  }
+ ],
+ "listas": [
+  {
+   "nombre": "Mercado del mes",
+   "rubro": "Mercado General del Mes",
+   "presupuesto": 0,
+   "items": [
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Canasta de huevos (30 und)",
+     "cantidad": 2.0,
+     "precio": 16500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Atún enlatado",
+     "cantidad": 6.0,
+     "precio": 5800.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Yogur griego grande (1 kg - rinde más que 5 peq.)",
+     "cantidad": 2.0,
+     "precio": 14500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Queso mozzarella bloque/tajado",
+     "cantidad": 2.0,
+     "precio": 11500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Jamón paquete familiar",
+     "cantidad": 2.0,
+     "precio": 9500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Embutido tipo salchicha o tajado",
+     "cantidad": 2.0,
+     "precio": 7500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Leche entera/deslactosada",
+     "cantidad": 3.0,
+     "precio": 4500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteínas y Lácteos",
+     "producto": "Crema de leche",
+     "cantidad": 3.0,
+     "precio": 4200.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Pan tajado / integral",
+     "cantidad": 2.0,
+     "precio": 6500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Tortillas de maíz paquete grande",
+     "cantidad": 1.0,
+     "precio": 8500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Pasta variada",
+     "cantidad": 3.0,
+     "precio": 3800.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Salsa napolitana",
+     "cantidad": 2.0,
+     "precio": 6500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Salsa de tomate grande",
+     "cantidad": 1.0,
+     "precio": 9500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Margarina",
+     "cantidad": 1.0,
+     "precio": 6800.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Aceite cocina (prorrateo mensual - dura 2 meses)",
+     "cantidad": 0.5,
+     "precio": 18000.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Despensa y Panadería",
+     "producto": "Especias variadas y salsas de adobo",
+     "cantidad": 5.0,
+     "precio": 4200.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Verduras Básicas",
+     "producto": "Cebolla (2 paq), Tomate (1 paq), Pimentón (2), Papas (1 paq gde)",
+     "cantidad": 1.0,
+     "precio": 34000.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Aseo Hogar y Personal",
+     "producto": "Detergente Fab grande + Suavitel",
+     "cantidad": 2.0,
+     "precio": 19500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Aseo Hogar y Personal",
+     "producto": "Jabón baño (1 paq Jaime + 1 paq María)",
+     "cantidad": 2.0,
+     "precio": 11500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Aseo Hogar y Personal",
+     "producto": "Papel higiénico (prorrateo mensual - dura 2 meses)",
+     "cantidad": 0.5,
+     "precio": 24000.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Aseo Hogar y Personal",
+     "producto": "Cremas dentales (2) + Servilletas (1)",
+     "cantidad": 1.0,
+     "precio": 14500.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Aseo Hogar y Personal",
+     "producto": "Vinagre blanco (3 bot), Bicarbonato (3), Bolsas negras (4)",
+     "cantidad": 1.0,
+     "precio": 22000.0,
+     "estado": "Pendiente"
+    },
+    {
+     "categoria": "Proteína Fresca Semanal",
+     "producto": "Pollo, carne de res, cerdo y frutas frescas (4 semanas)",
+     "cantidad": 4.0,
+     "precio": 83000.0,
+     "estado": "Pendiente"
+    }
+   ]
+  }
+ ]
+}

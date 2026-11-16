@@ -1,0 +1,23 @@
+# Dependencias y compilación
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Variables de entorno: claves y contraseñas (solo .env.example se sube)
+.env
+.env*.local
+.vercel
+
+# Datos personales del hogar: respaldos, bases locales y el Excel original
+data/
+*.db
+*.db-shm
+*.db-wal
+Visual_Board_Financiero_*.xlsx
+.~lock.*
+
+# Sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .card { @apply bg-surface border border-line rounded-xl p-5; }
+  .h2 { @apply font-display text-lg font-bold mb-4; text-wrap: balance; }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[.08em] text-muted; }
+  .inp { @apply w-full min-w-0 bg-bg border border-line rounded-md px-2.5 py-1.5 text-ink text-sm focus:outline-none focus:ring-2 focus:ring-accent; }
+  .inp[type=number] { @apply text-right tabular-nums; }
+  .btn { @apply inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-semibold text-ink hover:bg-surface2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer; }
+  .btn-pri { @apply bg-accent border-accent text-accentink hover:opacity-90; }
+  .btn-x { @apply rounded p-1 text-muted hover:text-bad hover:bg-badsoft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 disabled:pointer-events-none; }
+  .tbl { @apply w-full text-sm tabular-nums border-collapse; }
+  .tbl th { @apply text-[11px] font-semibold uppercase tracking-[.08em] text-muted text-left py-2 px-2 border-b border-line; }
+  .tbl td { @apply py-1.5 px-2 border-b border-line align-middle; }
+  .tbl tfoot td { @apply font-bold border-b-0 pt-3; }
+  .tbl th.num, .tbl td.num { @apply text-right; }
+  .chip { @apply inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide; }
+  .nav-btn { @apply flex items-center gap-3 w-full rounded-lg px-3 py-2 text-sm font-semibold text-muted hover:bg-surface2 hover:text-ink whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-accent; }
+  .nav-btn.on { @apply bg-accentsoft text-accent; }
+  .kpi-val { @apply font-display text-2xl font-bold tabular-nums mt-1 leading-tight; }
+}

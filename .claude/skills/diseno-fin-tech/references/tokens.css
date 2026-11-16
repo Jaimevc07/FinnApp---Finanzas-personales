@@ -1,0 +1,161 @@
+/*
+  Tokens del sistema diseno-fin-tech (Tailwind v4).
+  Copia exacta de lo que vive en app/globals.css. Si cambias un valor aquí,
+  cámbialo también allá (o al revés).
+
+  Uso en componentes: clases de Tailwind generadas desde @theme, por ejemplo
+  bg-bg, bg-surface, bg-surface-2, text-ink, text-muted, border-line,
+  bg-accent, text-accent-strong, bg-accent-soft, bg-accent-fill, text-accent-ink,
+  text-pos-text, bg-pos-soft, text-neg-text, bg-neg-soft, shadow-card, shadow-fin.
+  Nunca escribas un color hexadecimal dentro de un componente.
+*/
+
+:root {
+  color-scheme: light;
+  --bg: #f4f3f0;
+  --surface: #ffffff;
+  --surface-2: #eeede9;
+  --surface-3: #e4e3df;
+  --line: #e6e5e1;
+  --ink: #111113;
+  --ink-2: #3b3b40;
+  --muted: #6b6a71;
+  --on-ink: #ffffff;
+
+  --accent: #f26411;
+  --accent-strong: #c2410c;
+  --accent-soft: #fff1e8;
+  /* Relleno de botones y FAB: naranja profundo con texto blanco (4,5:1) */
+  --accent-fill: #cf4a0a;
+  --accent-fill-hover: #b8410a;
+  --accent-ink: #ffffff;
+
+  --pos: #0e9f4e;
+  --pos-text: #0b7a3b;
+  --pos-soft: #e3f6ea;
+  --neg: #dc2f34;
+  --neg-text: #c4262b;
+  --neg-soft: #fde8e8;
+  --warn: #e5a100;
+  --warn-text: #8a5a00;
+  --warn-soft: #fff4d6;
+
+  /* Tarjeta oscura tipo crédito: igual en claro y oscuro */
+  --fin-from: #1b1b1e;
+  --fin-to: #2f2f34;
+  --fin-glow: rgb(242 100 17 / 0.38);
+  --fin-ink: #f5f5f4;
+  --fin-muted: #a1a1a8;
+  /* Montos sobre la tarjeta oscura (≥ 4,8:1 en ambos temas) */
+  --fin-pos: #34d27a;
+  --fin-neg: #ff6b70;
+  --fin-track: rgb(255 255 255 / 0.14);
+
+  --shadow-card: 0 1px 2px rgb(17 17 19 / 0.04), 0 12px 32px -18px rgb(17 17 19 / 0.18);
+  --shadow-fin: 0 24px 48px -24px rgb(17 17 19 / 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0b0c;
+    --surface: #161618;
+    --surface-2: #1f1f22;
+    --surface-3: #29292d;
+    --line: #2a2a2e;
+    --ink: #f5f5f4;
+    --ink-2: #d4d4d6;
+    --muted: #9b9aa1;
+    --on-ink: #111113;
+    --accent: #ff7a2e;
+    --accent-strong: #ff8f4d;
+    --accent-soft: #2a1a10;
+    --accent-fill: #ff7a2e;
+    --accent-fill-hover: #ff8f4d;
+    --accent-ink: #111113;
+    --pos: #2bc46b;
+    --pos-text: #34d27a;
+    --pos-soft: #0f2a1a;
+    --neg: #ff5c61;
+    --neg-text: #ff6b70;
+    --neg-soft: #2e1213;
+    --warn: #f5b82e;
+    --warn-text: #f5b82e;
+    --warn-soft: #2b220c;
+    --fin-from: #26262a;
+    --fin-to: #0f0f11;
+    --fin-glow: rgb(255 122 46 / 0.32);
+    --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.6);
+    --shadow-fin: 0 24px 48px -24px rgb(0 0 0 / 0.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0b0c;
+  --surface: #161618;
+  --surface-2: #1f1f22;
+  --surface-3: #29292d;
+  --line: #2a2a2e;
+  --ink: #f5f5f4;
+  --ink-2: #d4d4d6;
+  --muted: #9b9aa1;
+  --on-ink: #111113;
+  --accent: #ff7a2e;
+  --accent-strong: #ff8f4d;
+  --accent-soft: #2a1a10;
+  --accent-fill: #ff7a2e;
+  --accent-fill-hover: #ff8f4d;
+  --accent-ink: #111113;
+  --pos: #2bc46b;
+  --pos-text: #34d27a;
+  --pos-soft: #0f2a1a;
+  --neg: #ff5c61;
+  --neg-text: #ff6b70;
+  --neg-soft: #2e1213;
+  --warn: #f5b82e;
+  --warn-text: #f5b82e;
+  --warn-soft: #2b220c;
+  --fin-from: #26262a;
+  --fin-to: #0f0f11;
+  --fin-glow: rgb(255 122 46 / 0.32);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.6);
+  --shadow-fin: 0 24px 48px -24px rgb(0 0 0 / 0.8);
+}
+
+@theme inline {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-on-ink: var(--on-ink);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-pos: var(--pos);
+  --color-pos-text: var(--pos-text);
+  --color-pos-soft: var(--pos-soft);
+  --color-neg: var(--neg);
+  --color-neg-text: var(--neg-text);
+  --color-neg-soft: var(--neg-soft);
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-soft: var(--warn-soft);
+  --color-fin-ink: var(--fin-ink);
+  --color-fin-muted: var(--fin-muted);
+  --color-fin-pos: var(--fin-pos);
+  --color-fin-neg: var(--fin-neg);
+  --color-fin-track: var(--fin-track);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-fin: var(--shadow-fin);
+}
