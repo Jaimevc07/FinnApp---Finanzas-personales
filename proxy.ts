@@ -8,9 +8,9 @@ import { configSupabase } from './lib/supabase/config';
 const PUBLICAS = new Set([
   '/login', '/auth/callback', '/auth/confirmar', '/api/auth/config', '/api/auth/registro', '/api/auth/recuperar', '/api/auth/reenviar',
 ]);
-const PUBLICAS_PREFIJO = ['/invitacion/', '/api/invitacion/'];
+const PUBLICAS_PREFIJO = ['/invitacion/', '/api/invitacion/', '/unirse/', '/api/unirse/'];
 /** Pantallas que no necesitan un cuaderno elegido */
-const SIN_CUADERNO = ['/cuadernos', '/login', '/invitacion/', '/auth/', '/bienvenida', '/restablecer'];
+const SIN_CUADERNO = ['/cuadernos', '/login', '/invitacion/', '/auth/', '/unirse/', '/restablecer'];
 
 function redirigir(req: NextRequest, res: NextResponse, ruta: string, conVolver: boolean) {
   const destino = req.nextUrl.clone();

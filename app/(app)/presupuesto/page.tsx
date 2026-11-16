@@ -15,7 +15,8 @@ import { Hoja } from '@/components/ui/hoja';
 import { Segmentado } from '@/components/ui/segmentado';
 import { SelectorIcono } from '@/components/ui/selector-icono';
 import { SelectorMeses } from '@/components/ui/selector-meses';
-import { calcularMetas, mesesConValor, movimientosDe, planDeudas, realPorCategoria, rubroVisible, valorCelda } from '@/lib/calculos';
+import { calcularMetas, mesesConValor, movimientosDe, planDeudas, planVsReal, realPorCategoria, rubroVisible, valorCelda, type ItemPlanReal } from '@/lib/calculos';
+import { EstadoCategoria, EstadoPago, GastosExtra } from '@/components/plan-vs-real';
 import { conSigno, cop, copCorto, delta, fechaCorta, numero, pct } from '@/lib/formato';
 import { iconoCategoria } from '@/lib/iconos';
 import { diaSueldo, etiquetaMes, mesAnterior, mesSiguiente } from '@/lib/meses';
@@ -92,8 +93,10 @@ function PorMes() {
   const mesVacio = fila.ingresos === 0 && fila.egresos === 0;
   const idx = estado.periodos.findIndex(p => p.id === periodoId);
   const sugerido = estado.periodos[idx + 1] ?? estado.periodos[idx - 1];
-  const real = realPorCategoria(estado, periodoId);
   const recibido = realPorCategoria(estado, periodoId, 'ingreso');
+  // Lo pagado de cada ítem y los gastos extra (sin ítem) del mes, por categoría
+  const pvr = planVsReal(estado, periodoId, fila);
+  const pagos = new Map(pvr.filas.flatMap(f => f.items).map(x => [x.rubro.id, x]));
   const alternar = (id: number) => setAbiertas(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
@@ -139,11 +142,11 @@ function PorMes() {
         {(grupo === 'ingreso' || grupo === 'operativo') && cats.map(cat => {
           const todos = estado.rubros.filter(r => r.categoria_id === cat.id);
           const abierta = abiertas.has(cat.id);
-          const rubros = todos.filter(r => abierta || retener.has(r.id) || rubroVisible(estado, r, periodoId));
+          const rubros = todos.filter(r => abierta || retener.has(r.id) || rubroVisible(estado, r, periodoId) || (pagos.get(r.id)?.real ?? 0) > 0);
           const ocultos = todos.length - rubros.length;
           const Icono = iconoCategoria(cat);
           const plan = fila.porCategoria[cat.id] ?? 0;
-          const gastado = cat.seccion === 'operativo' ? (real.get(cat.nombre) ?? 0) : 0;
+          const f = cat.seccion !== 'ingreso' ? pvr.filas.find(x => x.id === cat.id) : undefined;
           const entro = cat.seccion === 'ingreso' ? (recibido.get(cat.nombre) ?? 0) : 0;
           return (
             <Tarjeta
@@ -155,9 +158,12 @@ function PorMes() {
                   {cat.control && <Insignia tono={cat.control === 'Flexible' ? 'accent' : 'neutro'}>{cat.control}</Insignia>}
                 </span>
               }
-              subtitulo={gastado > 0 ? (
-                <span className={cx(gastado > plan ? 'font-semibold text-neg-text' : gastado >= plan * 0.85 ? 'font-semibold text-warn-text' : '')}>
-                  Real del mes: {cop(gastado)}{plan > 0 ? ` · ${pct(gastado, plan)} de lo planeado` : ' · sin presupuesto'}
+              subtitulo={f && f.real > 0 ? (
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <EstadoCategoria f={f} />
+                  {Math.round(f.pendiente) > 0 && f.plan > 0 && <span>Pagado {cop(f.enPlan)} · faltan <b className="font-semibold text-ink-2">{cop(f.pendiente)}</b></span>}
+                  {Math.round(f.pendiente) > 0 && f.fueraDelPlan > 0 && <span className="font-semibold text-neg-text">−{cop(f.fueraDelPlan)} de más</span>}
+                  {f.plan === 0 && <span className="font-semibold text-neg-text">Gastado {cop(f.real)} · sin presupuesto</span>}
                 </span>
               ) : entro > 0 ? (
                 <span>
@@ -178,7 +184,7 @@ function PorMes() {
               {rubros.length > 0 ? (
                 <ul className="flex flex-col divide-y divide-line">
                   {rubros.map(r => (
-                    <FilaRubro key={r.id} rubro={r} periodoId={periodoId} onMas={() => setEditando(r)}
+                    <FilaRubro key={r.id} rubro={r} periodoId={periodoId} onMas={() => setEditando(r)} pago={f ? pagos.get(r.id) : undefined}
                       onCambio={() => !r.recurrente && setRetener(s => new Set(s).add(r.id))}
                       detalle={!r.recurrente ? <MesesDelRubro rubro={r} /> : undefined} />
                   ))}
@@ -187,6 +193,7 @@ function PorMes() {
                 <p className="text-[13px] text-muted">{todos.length ? `Nada presupuestado para ${fila.periodo.etiqueta} en esta categoría.` : 'Sin rubros todavía.'}</p>
               )}
               {cat.seccion === 'ingreso' && <IngresosRegistrados categoria={cat.nombre} />}
+              {f && <GastosExtra f={f} mes={fila.periodo.etiqueta} className="mt-3" />}
               <div className="mt-3 flex flex-wrap gap-2">
                 <PastillaSuave icono={Plus} tono="neutro" onClick={() => setNuevoEn(cat)}>Agregar rubro</PastillaSuave>
                 {(ocultos > 0 || abierta) && (
@@ -372,8 +379,10 @@ function BotonMas({ etiqueta, onClick }: { etiqueta: string; onClick: () => void
   );
 }
 
-function FilaRubro({ rubro, periodoId, onMas, detalle, titulo, onCambio }: {
+function FilaRubro({ rubro, periodoId, onMas, detalle, titulo, onCambio, pago }: {
   rubro: Rubro; periodoId: string; onMas: () => void; detalle?: React.ReactNode; titulo?: string; onCambio?: () => void;
+  /** Lo pagado de este ítem en el mes (Movimientos) */
+  pago?: ItemPlanReal;
 }) {
   const { estado } = useDatos();
   const auto = !!estado.valores[claveCelda(rubro.id, periodoId)]?.auto;
@@ -387,6 +396,7 @@ function FilaRubro({ rubro, periodoId, onMas, detalle, titulo, onCambio }: {
           </p>
         )}
         {detalle && <div className="mt-0.5 text-[12px] leading-snug text-muted">{detalle}</div>}
+        {pago && (pago.real > 0) && <div className="mt-1"><EstadoPago x={pago} /></div>}
       </div>
       <ValorMes rubro={rubro} periodoId={periodoId} onCambio={onCambio} />
       <BotonMas etiqueta={`Opciones de ${rubro.nombre}`} onClick={onMas} />

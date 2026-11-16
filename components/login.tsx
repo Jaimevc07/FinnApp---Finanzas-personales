@@ -13,7 +13,7 @@ import { Marca } from './ui/marca';
 type Config = { registroAbierto: boolean; google: boolean };
 
 const ERRORES: Record<string, string> = {
-  'sin-acceso': 'Esta cuenta no tiene acceso a la app. Pídele a alguien que te invite.',
+  'sin-acceso': 'Esta cuenta no tiene acceso a la app. Pídele a alguien de la app un enlace de invitación.',
   google: 'No se pudo iniciar sesión con Google. Intenta de nuevo.',
   enlace: 'El enlace del correo venció o ya se usó. Pide uno nuevo.',
 };
@@ -215,7 +215,7 @@ export function FormularioLogin() {
           </button>
           <p className="max-w-[340px] text-[12px] text-muted">
             <LockKeyhole className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />
-            ¿Aún no tienes cuenta? Pídele a alguien de la app que te invite.
+            ¿Aún no tienes cuenta? Pídele a alguien de la app que te pase un enlace de invitación.
           </p>
         </div>
       )}

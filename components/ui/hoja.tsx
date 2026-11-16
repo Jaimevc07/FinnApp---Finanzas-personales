@@ -8,6 +8,33 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { BotonCircular } from './botones';
 import { useSoloLectura } from './solo-lectura';
 
+// Mientras haya una hoja abierta, la página de atrás no se mueve. overflow:hidden no basta en
+// iPhone, así que el body queda fijo en su posición y al cerrar vuelve al mismo punto.
+// Lleva la cuenta de las hojas abiertas porque una puede abrir otra encima.
+let abiertas = 0;
+let posicion = 0;
+
+function bloquearScroll() {
+  if (abiertas++ > 0) return;
+  posicion = window.scrollY;
+  const b = document.body.style;
+  b.position = 'fixed';
+  b.top = `-${posicion}px`;
+  b.left = '0';
+  b.right = '0';
+  b.width = '100%';
+  document.documentElement.style.overflow = 'hidden';
+}
+
+function soltarScroll() {
+  if (--abiertas > 0) return;
+  abiertas = 0;
+  const b = document.body.style;
+  b.position = b.top = b.left = b.right = b.width = '';
+  document.documentElement.style.overflow = '';
+  window.scrollTo({ top: posicion, behavior: 'instant' });
+}
+
 export function Hoja({
   abierta, onCerrar, titulo, subtitulo, children, pie, siempreActiva,
 }: { abierta: boolean; onCerrar: () => void; titulo: string; subtitulo?: string; children: ReactNode; pie?: ReactNode; siempreActiva?: boolean }) {
@@ -19,6 +46,12 @@ export function Hoja({
     if (!d) return;
     if (abierta && !d.open) d.showModal();
     if (!abierta && d.open) d.close();
+  }, [abierta]);
+
+  useEffect(() => {
+    if (!abierta) return;
+    bloquearScroll();
+    return soltarScroll;
   }, [abierta]);
 
   return (
@@ -42,7 +75,7 @@ export function Hoja({
               <X />
             </BotonCircular>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
             {bloqueada ? (
               <>
                 <p className="mb-4 flex items-center gap-2 rounded-2xl bg-surface-2 p-3 text-[12px] font-semibold text-ink-2">

@@ -73,9 +73,10 @@ npm run build && npm start   # producción
   (abre el programa de correo con el mensaje listo), WhatsApp o copiándolo. Quien lo abre crea su
   cuenta o entra con la suya; si ya tiene cuenta, la invitación también le aparece en la pre-vista.
   La cuenta nueva se confirma con un correo de Supabase (si el correo no sale, se crea confirmada).
-- **Invitar a la app:** en *Ajustes → Invitar a la app* se invita a alguien nuevo sin darle ningún
-  cuaderno. Supabase le manda un correo; al abrirlo crea su contraseña en `/bienvenida`. Si el correo
-  no sale, la app da un enlace para enviarlo por WhatsApp.
+- **Invitar a la app:** en *Ajustes → Invitar a la app* se copia un enlace (`/unirse/<token>`) y se
+  envía por WhatsApp o como se prefiera. Quien lo abre escribe su nombre, correo y contraseña y queda
+  con su propia cuenta, sin ningún cuaderno de quien invita. Cada enlace sirve para una persona y vence
+  en 7 días (tabla `enlaces_app`).
 - **Olvidé mi contraseña:** en `/login` → *¿Olvidaste tu contraseña?* llega un correo con un enlace
   a `/restablecer`.
 - **Primera cuenta:** si la app no tiene cuentas, `/login` deja crear la primera (administra la app
@@ -91,13 +92,12 @@ que abre la sesión en el servidor (funciona aunque el correo se abra en otro di
    una contraseña de aplicación (`smtp.gmail.com`, puerto 465) o Brevo (300 correos al día).
 2. **Plantillas** (*Authentication → Emails → Templates*): pega las de `supabase/plantillas-correo/`.
    - *Confirm signup* → `confirmar-cuenta.html` · asunto «Confirma tu cuenta de Finanzas Hogar»
-   - *Invite user* → `invitacion.html` · asunto «Te invitaron a Finanzas Hogar»
    - *Reset password* → `recuperar-contrasena.html` · asunto «Crea una contraseña nueva para Finanzas Hogar»
 3. **URLs** (*Authentication → URL Configuration*): *Site URL* = el dominio de Vercel; en
    *Redirect URLs* agrega `https://<tu-dominio>/auth/confirmar` y `http://localhost:3000/auth/confirmar`.
 4. *Sign In / Providers → Email*: "Confirm email" activado y "Allow new users to sign up" **activado**
-   (las cuentas nuevas de las invitaciones a cuadernos se crean con registro normal; sin invitación
-   nadie entra a la app aunque se registre).
+   (las cuentas nuevas de los enlaces de invitación se crean con registro normal; sin un enlace nadie
+   entra a la app aunque se registre).
 - **Aislamiento en la base:** cada petición corre en una transacción que fija el cuaderno
   (`app.cuaderno`) y usa el rol `finanzas_app`, que por RLS solo ve y cambia filas de ese cuaderno.
   `cuaderno_id` se llena solo al insertar. Ver `supabase/migrations/20261115020000_cuadernos.sql`.
@@ -148,7 +148,8 @@ app/(app)/          Pantallas (inicio, presupuesto, movimientos, plan, listas, a
 app/api/            API REST sobre Postgres (Supabase)
 app/login/          Inicio de sesión (y la primera cuenta)
 app/cuadernos/      Pre-vista de cuadernos
-app/invitacion/     Página del enlace de invitación
+app/invitacion/     Página del enlace de invitación a un cuaderno
+app/unirse/         Página del enlace para unirse a la app (crear cuenta)
 app/auth/callback/  Vuelta del inicio de sesión con Google
 lib/supabase/       Clientes de Supabase Auth (navegador, servidor y administrador)
 components/ui/      Sistema de diseño (ver la skill diseno-fin-tech)

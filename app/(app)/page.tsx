@@ -7,13 +7,13 @@ import { AvisoMesFuera } from '@/components/aviso-mes';
 import { FilaMeta } from '@/components/metas';
 import { ActividadReciente } from '@/components/actividad';
 import { MovimientosDelMes, ParaRevisar, SaludFinanciera } from '@/components/resumen-inicio';
-import { BarraMes, Leyenda } from '@/components/plan-vs-real';
+import { BarraMes, GastadoVsPresupuesto, Leyenda } from '@/components/plan-vs-real';
 import { diaSueldo, diasRestantes, etiquetaMes, mesActual } from '@/lib/meses';
 import { useDatos } from '@/components/proveedor';
 import { SelectorPeriodo } from '@/components/selector-periodo';
 import { ConDatos } from '@/components/shell';
 import { AccionCircular, BotonAcento, BotonCircular, BotonPrimario, PastillaSuave, cx } from '@/components/ui/botones';
-import { Estadistica, Insignia, MontoHeroe } from '@/components/ui/datos';
+import { Estadistica, Insignia } from '@/components/ui/datos';
 import { EncabezadoPantalla, Tarjeta } from '@/components/ui/estructura';
 import { TarjetaFin } from '@/components/ui/tarjeta-fin';
 import { calcularMetas, planVsReal, tablero } from '@/lib/calculos';
@@ -65,20 +65,12 @@ function Tablero() {
         <div className="flex flex-col gap-5 lg:sticky lg:top-6 lg:col-span-5">
           <section className="flex flex-col items-center gap-5 lg:rounded-3xl lg:bg-surface lg:p-6 lg:shadow-card">
             <SelectorPeriodo />
-            <MontoHeroe
-              centrado
-              etiqueta={`En la cuenta al cierre de ${fila.periodo.etiqueta}`}
-              valor={fila.caja}
-              detalle={c.saldo_inicial
-                ? <>Saldo inicial de {cop(c.saldo_inicial)} + lo que sobra cada mes hasta {fila.periodo.etiqueta}, si se cumple el plan</>
-                : <>Lo que sobra cada mes, sumado hasta {fila.periodo.etiqueta}, si se cumple el plan</>}
-            />
+            <GastadoVsPresupuesto mes={fila.periodo.etiqueta} plan={fila.egresos} gastado={real.egresos} caja={fila.caja} />
             <TarjetaFin
               titular={estado.cuaderno?.nombre ?? c.hogar}
               mes={fila.periodo.etiqueta}
               cobro={fila.periodo.cobro}
               ingresosPlan={fila.ingresos}
-              egresosPlan={fila.egresos}
               ingresosReal={real.ingresos}
               egresosReal={real.egresos}
               porGastar={real.pendiente}

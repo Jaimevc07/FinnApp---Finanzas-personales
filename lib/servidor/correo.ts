@@ -1,8 +1,9 @@
-// Cuentas por correo con Supabase Auth: confirmar la cuenta nueva, invitar a la app y recuperar la
-// contraseña. Los correos los manda Supabase con las plantillas de supabase/plantillas-correo: cada
+// Cuentas por correo con Supabase Auth: confirmar la cuenta nueva, unirse a la app con un enlace y
+// recuperar la contraseña. Los correos los manda Supabase con las plantillas de supabase/plantillas-correo: cada
 // enlace lleva a /auth/confirmar?token_hash=…&type=…, que abre la sesión en el servidor (sirve aunque
 // el correo se abra en otro dispositivo).
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { randomBytes } from 'node:crypto';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { configSupabase } from '../supabase/config';
 import { supabaseAdmin } from '../supabase/servidor';
 import { ejecutar, una } from './db';
@@ -74,95 +75,75 @@ export async function recuperarContrasena(b: Fila, origen: string) {
   if (error && (/rate limit|too many|security purposes/i.test(error.message) || NO_SALIO.test(error.message))) throw new Error(traducirAuth(error.message));
 }
 
-async function buscarUsuario(correo: string): Promise<User | undefined> {
-  const admin = supabaseAdmin().auth.admin;
-  for (let pagina = 1; pagina <= 20; pagina++) {
-    const { data, error } = await admin.listUsers({ page: pagina, perPage: 100 });
-    if (error) throw new Error(traducirAuth(error.message));
-    const u = data.users.find(x => x.email?.toLowerCase() === correo);
-    if (u || data.users.length < 100) return u;
-  }
-  return undefined;
-}
-
-export type ResultadoInvitacionApp =
-  | { estado: 'enviado'; correo: string }
-  | { estado: 'enlace'; correo: string; enlace: string; motivo: 'reenvio' | 'correo' }
-  | { estado: 'ya-tenia'; correo: string };
+/* ---------- Enlaces para unirse a la app ---------- */
+const TOKEN = /^[A-Za-z0-9_-]{20,64}$/;
+type Enlace = { id: number; invitado_por: string | null; usado: string | null; vencido: boolean };
+const enlacePorToken = (token: string) => TOKEN.test(token)
+  ? una<Enlace>(`SELECT e.id, m.nombre AS invitado_por, e.usado, e.vence <= now() AS vencido
+      FROM enlaces_app e LEFT JOIN miembros m ON m.usuario_id = e.creado_por WHERE e.token = ?`, token)
+  : Promise.resolve(undefined);
 
 /**
- * Invita a alguien nuevo a la app (no a un cuaderno): Supabase le manda un correo para crear su cuenta.
- * Si el correo no sale (falta configurar SMTP) o ya se había invitado, devuelve un enlace para
- * enviárselo por WhatsApp o como prefieras. Al entrar, crea su contraseña en /bienvenida.
+ * Crea un enlace para que alguien nuevo se una a la app con su propia cuenta (sin cuadernos: no ve
+ * los de quien invita). Sirve para una persona y vence a los 7 días.
  */
-export async function invitarALaApp(q: Quien, b: Fila, origen: string): Promise<ResultadoInvitacionApp> {
-  const nombre = nombreDe(b.nombre), correo = correoDe(b.correo);
-  if (await una('SELECT 1 FROM miembros WHERE lower(correo) = ? AND activo AND usuario_id <> ?', correo, q.id)) {
-    const confirmado = await buscarUsuario(correo);
-    if (confirmado?.email_confirmed_at || confirmado?.last_sign_in_at) throw new Error('Esa persona ya tiene cuenta en la app. Invítala a un cuaderno desde «Personas en este cuaderno».');
-  }
-  if (correo === q.correo.toLowerCase()) throw new Error('Ese es tu propio correo');
-  const admin = supabaseAdmin().auth.admin;
-  const datos = { nombre, invitado: true, invitado_por: q.nombre };
-  const darAcceso = async (id: string) => {
-    await ejecutar(`INSERT INTO miembros (usuario_id, nombre, correo) VALUES (?, ?, ?)
-      ON CONFLICT (usuario_id) DO UPDATE SET activo = true`, id, nombre, correo);
-    olvidarMiembros();
+export async function crearEnlace(q: Quien, origen: string) {
+  const token = randomBytes(24).toString('base64url');
+  await ejecutar('INSERT INTO enlaces_app (token, creado_por) VALUES (?, ?)', token, q.id);
+  return { enlace: `${origen}/unirse/${token}` };
+}
+
+/** Lo que muestra la página del enlace (pública: el token es el secreto). */
+export async function infoEnlace(token: string, sesion: { id: string; correo: string } | null) {
+  const e = await enlacePorToken(token);
+  if (!e) return null;
+  const miembro = !!sesion && !!(await una('SELECT 1 FROM miembros WHERE usuario_id = ? AND activo', sesion.id));
+  return {
+    invitado_por: e.invitado_por,
+    estado: (e.usado ? 'usado' : e.vencido ? 'vencido' : 'pendiente') as 'usado' | 'vencido' | 'pendiente',
+    sesion: sesion ? { correo: sesion.correo, miembro } : null,
   };
-
-  // 1. Correo de invitación de Supabase
-  const inv = await admin.inviteUserByEmail(correo, { redirectTo: urlConfirmar(origen), data: datos });
-  if (inv.data?.user && !inv.error) {
-    await darAcceso(inv.data.user.id);
-    return { estado: 'enviado', correo };
-  }
-
-  // 2. Ya existía en Supabase Auth
-  const existente = await buscarUsuario(correo);
-  if (existente && (existente.email_confirmed_at || existente.last_sign_in_at)) {
-    // Cuenta real (con su contraseña): solo se le da acceso a la app; entra con su correo
-    await darAcceso(existente.id);
-    return { estado: 'ya-tenia', correo };
-  }
-
-  // 3. Invitación pendiente o el correo no salió: enlace para enviarlo a mano
-  const tipo = existente ? 'magiclink' : 'invite';
-  const link = await admin.generateLink(tipo === 'invite'
-    ? { type: 'invite', email: correo, options: { redirectTo: urlConfirmar(origen), data: datos } }
-    : { type: 'magiclink', email: correo, options: { redirectTo: urlConfirmar(origen) } });
-  if (link.error || !link.data.user) throw new Error(traducirAuth(link.error?.message ?? inv.error?.message ?? 'No se pudo crear la invitación'));
-  if (tipo === 'magiclink') await admin.updateUserById(link.data.user.id, { user_metadata: datos });
-  await darAcceso(link.data.user.id);
-  const enlace = `${urlConfirmar(origen)}?token_hash=${encodeURIComponent(link.data.properties.hashed_token)}&type=${tipo === 'invite' ? 'invite' : 'email'}`;
-  return { estado: 'enlace', correo, enlace, motivo: existente ? 'reenvio' : 'correo' };
 }
+
+const darAcceso = async (id: string, nombre: string, correo: string) => {
+  await ejecutar(`INSERT INTO miembros (usuario_id, nombre, correo) VALUES (?, ?, ?)
+    ON CONFLICT (usuario_id) DO UPDATE SET activo = true`, id, nombre, correo);
+  olvidarMiembros();
+};
 
 /**
- * Con la sesión abierta por un enlace del correo: pone la contraseña (al recuperarla) y, si viene de
- * una invitación a la app, también el nombre.
+ * Se une a la app con el enlace. Sin sesión crea la cuenta { nombre, correo, contrasena }, que se
+ * confirma por correo si Supabase lo pide. Con sesión (ya tenía cuenta en Supabase pero no en la app)
+ * solo le da acceso. → { confirmar, correo }
  */
-export async function ponerContrasena(sesion: { id: string; correo: string }, b: Fila) {
-  const m = await una<{ nombre: string }>('SELECT nombre FROM miembros WHERE usuario_id = ? AND activo', sesion.id);
-  if (!m) throw new ErrorAcceso('Esta cuenta no tiene acceso a la app. Pide que te inviten.', 403, 'sin-cuenta');
-  const contrasena = contrasenaDe(b.contrasena);
-  const nombre = b.nombre !== undefined ? nombreDe(b.nombre) : undefined;
-  const { error } = await supabaseAdmin().auth.admin.updateUserById(sesion.id, {
-    password: contrasena,
-    ...(nombre ? { user_metadata: { nombre, invitado: false } } : {}),
-  });
-  if (error) throw new Error(traducirAuth(error.message));
-  if (nombre && nombre !== m.nombre) {
-    await ejecutar('UPDATE miembros SET nombre = ? WHERE usuario_id = ?', nombre, sesion.id);
-    olvidarMiembros();
+export async function unirseConEnlace(token: string, sesion: { id: string; correo: string } | null, b: Fila, origen: string) {
+  const e = await enlacePorToken(token);
+  if (!e) throw new Error('Este enlace no existe');
+  if (sesion && await una('SELECT 1 FROM miembros WHERE usuario_id = ? AND activo', sesion.id)) return { confirmar: false, correo: sesion.correo };
+  if (e.usado) throw new Error('Este enlace ya se usó. Pide uno nuevo a quien te invitó');
+  if (e.vencido) throw new Error('Este enlace venció. Pide uno nuevo a quien te invitó');
+  const nombre = nombreDe(b.nombre);
+  const correo = sesion?.correo ?? correoDe(b.correo);
+  if (!sesion && await una('SELECT 1 FROM miembros WHERE lower(correo) = ?', correo)) throw new ErrorAcceso(CUENTA_EXISTE, 409, 'cuenta-existe');
+  const contrasena = sesion ? '' : contrasenaDe(b.contrasena);
+  // Se aparta el enlace antes de crear la cuenta: así no lo usan dos personas a la vez
+  const apartado = await una("UPDATE enlaces_app SET usado = now() WHERE id = ? AND usado IS NULL AND vence > now() RETURNING id", e.id);
+  if (!apartado) throw new Error('Este enlace ya se usó. Pide uno nuevo a quien te invitó');
+  try {
+    const cuenta = sesion ? { id: sesion.id, confirmada: true } : await crearCuentaConCorreo(correo, contrasena, nombre, origen);
+    await darAcceso(cuenta.id, nombre, correo);
+    await ejecutar('UPDATE enlaces_app SET usado_por = ? WHERE id = ?', cuenta.id, e.id);
+    return { confirmar: !cuenta.confirmada, correo };
+  } catch (err) {
+    await ejecutar('UPDATE enlaces_app SET usado = NULL WHERE id = ?', e.id);
+    throw err;
   }
 }
 
-/** Lo que muestra /bienvenida: el nombre con que lo invitaron y quién. */
-export async function datosBienvenida(sesion: { id: string; correo: string }) {
-  const { data } = await supabaseAdmin().auth.admin.getUserById(sesion.id);
-  const meta = (data.user?.user_metadata ?? {}) as { nombre?: string; invitado_por?: string };
-  const m = await una<{ nombre: string }>('SELECT nombre FROM miembros WHERE usuario_id = ? AND activo', sesion.id);
-  return { correo: sesion.correo, nombre: m?.nombre ?? meta.nombre ?? '', invitado_por: meta.invitado_por ?? null, acceso: !!m };
+/** Con la sesión abierta por el enlace del correo de recuperación: pone la contraseña nueva. */
+export async function ponerContrasena(sesion: { id: string; correo: string }, b: Fila) {
+  const { error } = await supabaseAdmin().auth.admin.updateUserById(sesion.id, { password: contrasenaDe(b.contrasena) });
+  if (error) throw new Error(traducirAuth(error.message));
 }
 
 /** El origen de la app para armar los enlaces de los correos (en Vercel, el dominio público). */

@@ -42,6 +42,8 @@
   --fin-pos: #34d27a;
   --fin-neg: #ff6b70;
   --fin-track: rgb(255 255 255 / 0.14);
+  /* La tarjeta de atrás (tarjetas apiladas) */
+  --fin-atras: #4a4a50;
 
   --shadow-card: 0 1px 2px rgb(17 17 19 / 0.04), 0 12px 32px -18px rgb(17 17 19 / 0.18);
   --shadow-fin: 0 24px 48px -24px rgb(17 17 19 / 0.55);
@@ -77,6 +79,7 @@
     --fin-from: #26262a;
     --fin-to: #0f0f11;
     --fin-glow: rgb(255 122 46 / 0.32);
+    --fin-atras: #303035;
     --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.6);
     --shadow-fin: 0 24px 48px -24px rgb(0 0 0 / 0.8);
   }
@@ -111,6 +114,7 @@
   --fin-from: #26262a;
   --fin-to: #0f0f11;
   --fin-glow: rgb(255 122 46 / 0.32);
+  --fin-atras: #303035;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.6);
   --shadow-fin: 0 24px 48px -24px rgb(0 0 0 / 0.8);
 }
@@ -200,6 +204,8 @@ dialog.hoja {
   color: var(--ink);
   border-radius: 28px 28px 0 0;
   box-shadow: 0 -12px 48px -12px rgb(0 0 0 / 0.35);
+  /* El scroll dentro de la hoja no pasa a la página de atrás */
+  overscroll-behavior: contain;
 }
 dialog.hoja::backdrop {
   background: rgb(11 11 12 / 0.45);

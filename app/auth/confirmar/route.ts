@@ -1,10 +1,10 @@
-// Enlaces de los correos de Supabase (confirmar cuenta, invitación, recuperar contraseña): valida el
+// Enlaces de los correos de Supabase (confirmar cuenta y recuperar contraseña): valida el
 // token, abre la sesión y lleva a la pantalla que sigue.
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { supabaseServidor } from '@/lib/supabase/servidor';
 
-const TIPOS: EmailOtpType[] = ['signup', 'invite', 'recovery', 'email', 'magiclink', 'email_change'];
+const TIPOS: EmailOtpType[] = ['signup', 'recovery', 'email', 'magiclink', 'email_change'];
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -18,7 +18,5 @@ export async function GET(req: Request) {
   if (error || !data.user) return ir('/login?error=enlace');
 
   if (tipo === 'recovery') return ir('/restablecer');
-  // Invitado a la app: aún no tiene contraseña
-  if (tipo === 'invite' || data.user.user_metadata?.invitado) return ir('/bienvenida');
   return ir('/cuadernos?confirmada=1');
 }
