@@ -72,16 +72,37 @@ npm run build && npm start   # producción
   La app crea un enlace personal (`/invitacion/<token>`, vence en 14 días) que se envía por correo
   (abre el programa de correo con el mensaje listo), WhatsApp o copiándolo. Quien lo abre crea su
   cuenta o entra con la suya; si ya tiene cuenta, la invitación también le aparece en la pre-vista.
-  El plan free de Supabase no envía correos a cualquier dirección: por eso el enlace lo manda uno.
+  La cuenta nueva se confirma con un correo de Supabase (si el correo no sale, se crea confirmada).
+- **Invitar a la app:** en *Ajustes → Invitar a la app* se invita a alguien nuevo sin darle ningún
+  cuaderno. Supabase le manda un correo; al abrirlo crea su contraseña en `/bienvenida`. Si el correo
+  no sale, la app da un enlace para enviarlo por WhatsApp.
+- **Olvidé mi contraseña:** en `/login` → *¿Olvidaste tu contraseña?* llega un correo con un enlace
+  a `/restablecer`.
 - **Primera cuenta:** si la app no tiene cuentas, `/login` deja crear la primera (administra la app
   y queda dueña de los cuadernos sin dueño). Después solo se entra por invitación.
+
+### Correos (confirmar cuenta, invitación y contraseña)
+
+Los correos los manda Supabase. Todos los enlaces llevan a `/auth/confirmar?token_hash=…&type=…`,
+que abre la sesión en el servidor (funciona aunque el correo se abra en otro dispositivo).
+
+1. **SMTP propio** (*Authentication → Emails → SMTP Settings*). Sin él, el plan free solo envía a
+   los miembros del equipo del proyecto y unos pocos correos por hora. Opciones gratis: Gmail con
+   una contraseña de aplicación (`smtp.gmail.com`, puerto 465) o Brevo (300 correos al día).
+2. **Plantillas** (*Authentication → Emails → Templates*): pega las de `supabase/plantillas-correo/`.
+   - *Confirm signup* → `confirmar-cuenta.html` · asunto «Confirma tu cuenta de Finanzas Hogar»
+   - *Invite user* → `invitacion.html` · asunto «Te invitaron a Finanzas Hogar»
+   - *Reset password* → `recuperar-contrasena.html` · asunto «Crea una contraseña nueva para Finanzas Hogar»
+3. **URLs** (*Authentication → URL Configuration*): *Site URL* = el dominio de Vercel; en
+   *Redirect URLs* agrega `https://<tu-dominio>/auth/confirmar` y `http://localhost:3000/auth/confirmar`.
+4. *Sign In / Providers → Email*: "Confirm email" activado y "Allow new users to sign up" **activado**
+   (las cuentas nuevas de las invitaciones a cuadernos se crean con registro normal; sin invitación
+   nadie entra a la app aunque se registre).
 - **Aislamiento en la base:** cada petición corre en una transacción que fija el cuaderno
   (`app.cuaderno`) y usa el rol `finanzas_app`, que por RLS solo ve y cambia filas de ese cuaderno.
   `cuaderno_id` se llena solo al insertar. Ver `supabase/migrations/20261115020000_cuadernos.sql`.
 - **Quién hizo qué:** cada movimiento y producto guarda quién lo registró y quién lo editó, y cada
   cambio queda en *Actividad* (`/actividad`), separada por cuaderno.
-- **Recomendado en Supabase:** *Authentication → Sign In / Providers* → desactivar "Allow new users
-  to sign up" (la app crea las cuentas con la clave secreta).
 - **Google (opcional):** activar el proveedor en Supabase y agregar `/auth/callback` en
   *Authentication → URL Configuration*. La cuenta de Google debe tener el correo invitado.
 

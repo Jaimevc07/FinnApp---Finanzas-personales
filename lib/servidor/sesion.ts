@@ -9,7 +9,7 @@ export type CuadernoActual = { id: number; nombre: string; icono: string | null;
 export type Quien = { id: string; nombre: string; correo: string; rol: 'admin' | 'miembro'; cuaderno?: CuadernoActual };
 
 /** Por qué no se puede: sin sesión, sin cuenta en la app, sin cuaderno elegido, sin acceso al cuaderno o sin permiso. */
-export type CodigoAcceso = 'sin-sesion' | 'sin-cuenta' | 'elige-cuaderno' | 'sin-cuaderno' | 'sin-permiso';
+export type CodigoAcceso = 'sin-sesion' | 'sin-cuenta' | 'elige-cuaderno' | 'sin-cuaderno' | 'sin-permiso' | 'cuenta-existe';
 
 export class ErrorAcceso extends Error {
   constructor(mensaje: string, public estado: 401 | 403 | 409, public codigo: CodigoAcceso = estado === 401 ? 'sin-sesion' : 'sin-permiso') {

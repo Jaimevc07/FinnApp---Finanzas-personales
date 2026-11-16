@@ -4,7 +4,8 @@ import { randomBytes } from 'node:crypto';
 import semilla from '../semilla.json';
 import type { Estado, Invitacion, InvitacionRecibida, Miembro, Permiso, ResumenCuaderno } from '../tipos';
 import { ejecutar, enCuaderno, insertar, sembrar, todas, transaccion, una, vaciar } from './db';
-import { cuentaAuth, contrasenaDe, nombreDe } from './miembros';
+import { crearCuentaConCorreo } from './correo';
+import { contrasenaDe, nombreDe } from './miembros';
 import { guardarConfig, leerEstado, registrar } from './repo';
 import { comoMiembro, ErrorAcceso, exigirPermiso, olvidarMiembros, quien, type CuadernoActual, type Quien } from './sesion';
 
@@ -208,13 +209,14 @@ async function unirse(i: InvitacionCompleta, q: Quien) {
  * Acepta una invitación por su enlace. Con sesión: el correo de la cuenta debe ser el invitado.
  * Sin sesión: si el correo no tiene cuenta, la crea (nombre y contraseña); si ya la tiene, pide iniciar sesión.
  */
-export async function aceptarPorToken(token: string, sesion: { id: string; correo: string } | null, b: Fila): Promise<number> {
+export async function aceptarPorToken(token: string, sesion: { id: string; correo: string } | null, b: Fila, origen: string): Promise<{ cuadernoId: number; confirmar: boolean }> {
   const i = /^[A-Za-z0-9_-]{20,64}$/.test(token) ? await porToken(token) : undefined;
   if (!i) throw new Error('La invitación no existe');
   if (i.aceptada) throw new Error('Esta invitación ya se usó');
   if (i.rechazada || i.vencida) throw new Error('Esta invitación venció. Pide una nueva');
   const correo = i.correo.toLowerCase();
   let q: Quien | undefined;
+  let confirmar = false;
   if (sesion) {
     if (sesion.correo !== correo) throw new ErrorAcceso(`Esta invitación es para ${i.correo}. Cierra sesión y entra con esa cuenta.`, 403, 'sin-permiso');
     q = await una<Quien>('SELECT usuario_id::text AS id, nombre, correo, rol FROM miembros WHERE usuario_id = ?', sesion.id);
@@ -230,13 +232,15 @@ export async function aceptarPorToken(token: string, sesion: { id: string; corre
       throw new ErrorAcceso('Ya tienes cuenta con ese correo: inicia sesión para aceptar', 401, 'sin-sesion');
     }
     const nombre = nombreDe(b.nombre), contrasena = contrasenaDe(b.contrasena);
-    const id = await cuentaAuth(correo, contrasena, nombre);
+    // La cuenta nueva se confirma con el correo que manda Supabase (si "Confirm email" está activo)
+    const cuenta = await crearCuentaConCorreo(correo, contrasena, nombre, origen);
     await ejecutar(`INSERT INTO miembros (usuario_id, nombre, correo) VALUES (?, ?, ?)
-      ON CONFLICT (usuario_id) DO UPDATE SET nombre = excluded.nombre, correo = excluded.correo, activo = true`, id, nombre, correo);
-    q = { id, nombre, correo, rol: 'miembro' };
+      ON CONFLICT (usuario_id) DO UPDATE SET nombre = excluded.nombre, correo = excluded.correo, activo = true`, cuenta.id, nombre, correo);
+    q = { id: cuenta.id, nombre, correo, rol: 'miembro' };
+    confirmar = !cuenta.confirmada;
   }
   await unirse(i, q);
-  return i.cuaderno_id;
+  return { cuadernoId: i.cuaderno_id, confirmar };
 }
 
 /** Desde la pre-vista: aceptar o rechazar una invitación dirigida al correo de la cuenta. */

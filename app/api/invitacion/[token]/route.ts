@@ -1,5 +1,6 @@
 // Pública: la página del enlace de invitación. El token es el secreto.
 import { aceptarPorToken, infoInvitacion } from '@/lib/servidor/cuadernos';
+import { origenDe } from '@/lib/servidor/correo';
 import { cuerpo, json, respuestaDeError } from '@/lib/servidor/http';
 import { sesionOpcional } from '@/lib/servidor/sesion';
 
@@ -17,11 +18,10 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 }
 
-/** Aceptar: con sesión (mismo correo) o creando la cuenta { nombre, contrasena }. → { cuadernoId } */
+/** Aceptar: con sesión (mismo correo) o creando la cuenta { nombre, contrasena }. → { cuadernoId, confirmar } */
 export async function POST(req: Request, ctx: Ctx) {
   try {
-    const cuadernoId = await aceptarPorToken((await ctx.params).token, await sesionOpcional(), await cuerpo(req));
-    return json({ cuadernoId });
+    return json(await aceptarPorToken((await ctx.params).token, await sesionOpcional(), await cuerpo(req), origenDe(req)));
   } catch (e) {
     return respuestaDeError(e);
   }

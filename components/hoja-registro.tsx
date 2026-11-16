@@ -11,7 +11,7 @@ import { conSigno, cop, fechaCorta, hoyISO } from '@/lib/formato';
 import { iconoDe, iconoRubro } from '@/lib/iconos';
 import { etiquetaMes } from '@/lib/meses';
 import { cuando, quienFue } from '@/lib/miembros';
-import { MEDIOS_PAGO, type Rubro, type TipoMovimiento } from '@/lib/tipos';
+import { MEDIOS_PAGO, type TipoMovimiento } from '@/lib/tipos';
 import { AvisoMesFueraCompacto } from './aviso-mes';
 import { useFinanzas } from './proveedor';
 import { BotonAcento, BotonSecundario, cx } from './ui/botones';
@@ -29,7 +29,11 @@ export function HojaRegistro() {
   const [valor, setValor] = useState(0);
   const [descripcion, setDescripcion] = useState('');
   const [categoria, setCategoria] = useState('');
-  const [rubroId, setRubroId] = useState<number | null>(null);
+  // Ítems del presupuesto elegidos. Con varios, cada uno se guarda como un movimiento con su monto.
+  const [seleccion, setSeleccion] = useState<number[]>([]);
+  const [montos, setMontos] = useState<Record<number, number>>({});
+  // true = el valor y la descripción los llenan los ítems elegidos (se empezó por elegir ítems)
+  const [auto, setAuto] = useState(false);
   const [medio, setMedio] = useState<string>(MEDIOS_PAGO[0]);
   const [fecha, setFecha] = useState(hoyISO());
   const [tarjetaId, setTarjetaId] = useState<number | ''>('');
@@ -55,7 +59,9 @@ export function HojaRegistro() {
     setValor(borrador?.valor ?? 0);
     setDescripcion(borrador?.descripcion ?? '');
     setCategoria(borrador?.categoria ?? '');
-    setRubroId(borrador?.rubro_id ?? null);
+    setSeleccion(borrador?.rubro_id ? [borrador.rubro_id] : []);
+    setMontos({});
+    setAuto(false);
     setMedio(borrador?.medio ?? MEDIOS_PAGO[0]);
     setFecha(borrador?.fecha ?? hoyISO());
     // '' = la primera tarjeta con cupo · 0 = otra tarjeta. Una compra vieja sin tarjeta queda como "otra".
@@ -82,22 +88,58 @@ export function HojaRegistro() {
       })
       .sort((a, b) => Number(b.plan > 0) - Number(a.plan > 0))
     : [];
-  const item = items.find(x => x.r.id === rubroId);
+  const elegidos = seleccion.map(id => items.find(x => x.r.id === id)).filter(x => !!x);
+  const varios = elegidos.length > 1;
+  const item = elegidos.length === 1 ? elegidos[0] : undefined;
   const planCat = items.reduce((s, x) => s + x.plan, 0);
   const yaGastado = estado && tipo === 'egreso' && planCat > 0
     ? (realPorCategoria(estado, mesMov).get(cat) ?? 0) - (edicion && edicion.categoria === cat && edicion.fecha?.startsWith(mesMov) ? edicion.valor ?? 0 : 0)
     : 0;
   const conEste = yaGastado + (tipo === 'egreso' ? valor : 0);
+  // Se pueden elegir varios ítems cuando se empieza por ellos (sin valor ni descripción) en un registro nuevo
+  const multiple = !edicion && (auto || (!valor && !descripcion.trim()));
 
-  function elegirItem(r: Rubro | null) {
-    const anterior = items.find(x => x.r.id === rubroId)?.r.nombre;
-    setRubroId(r?.id ?? null);
-    if (!r) return;
+  /** Lo que se propone pagar (o recibir) de un ítem: lo que falta del mes, o todo si ya estaba completo. */
+  const sugerido = (x: (typeof items)[number]) => Math.round(x.plan > x.antes ? x.plan - x.antes : x.plan);
+  const nombreDe = (id: number) => items.find(x => x.r.id === id)?.r.nombre ?? '';
+
+  /** Con los ítems elegidos se llenan el valor (la suma) y la descripción (sus nombres). */
+  function aplicarAuto(ids: number[], m: Record<number, number>) {
+    setSeleccion(ids);
+    setMontos(m);
+    if (!ids.length) { setAuto(false); setValor(0); setDescripcion(''); return; }
+    setAuto(true);
+    setValor(ids.reduce((s, id) => s + (m[id] || 0), 0));
+    setDescripcion(ids.map(nombreDe).join(' + '));
+  }
+
+  function elegirItem(x: (typeof items)[number]) {
+    const ya = seleccion.includes(x.r.id);
+    if (multiple) {
+      const ids = ya ? seleccion.filter(id => id !== x.r.id) : [...seleccion.filter(id => items.some(y => y.r.id === id)), x.r.id];
+      aplicarAuto(ids, ya ? montos : { ...montos, [x.r.id]: montos[x.r.id] ?? sugerido(x) });
+      return;
+    }
+    // Un solo ítem: el valor ya lo escribiste tú
+    const anterior = item?.r.nombre;
+    setSeleccion(ya ? [] : [x.r.id]);
+    if (ya) return;
     // La descripción toma el nombre del ítem si estaba vacía o tenía el del ítem anterior
-    if (!descripcion.trim() || descripcion === anterior) setDescripcion(r.nombre);
+    if (!descripcion.trim() || descripcion === anterior) setDescripcion(x.r.nombre);
     // En un ingreso sin valor, se propone lo que falta por recibir de ese ítem
-    const x = items.find(y => y.r.id === r.id);
-    if (tipo === 'ingreso' && !valor && x && x.plan > x.antes) setValor(Math.round(x.plan - x.antes));
+    if (tipo === 'ingreso' && !valor && x.plan > x.antes) setValor(Math.round(x.plan - x.antes));
+  }
+
+  /** Al cambiar de categoría o de tipo, los ítems elegidos ya no aplican. */
+  function soltarItems() {
+    if (auto) aplicarAuto([], {});
+    else setSeleccion([]);
+  }
+
+  function cambiarValor(v: number) {
+    setValor(v);
+    // Con un ítem elegido por la app, el valor que escribas es el de ese ítem
+    if (auto && elegidos.length === 1) setMontos({ ...montos, [elegidos[0].r.id]: v });
   }
 
   // Compra con tarjeta de crédito: cupo que queda antes y después de esta compra
@@ -113,9 +155,28 @@ export function HojaRegistro() {
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
-    if (valor <= 0) return avisar('Escribe un valor mayor a cero');
+    if (varios) {
+      const sinMonto = elegidos.find(x => !(montos[x.r.id] > 0));
+      if (sinMonto) return avisar(`Escribe cuánto pagas de ${sinMonto.r.nombre}`);
+    } else if (valor <= 0) return avisar('Escribe un valor mayor a cero');
     setEnviando(true);
+    let guardados = 0;
     try {
+      if (varios) {
+        // Un movimiento por ítem, para que cada uno cuente contra su presupuesto
+        for (const x of elegidos) {
+          await guardarMovimiento({
+            tipo, valor: montos[x.r.id], descripcion: x.r.nombre, categoria: cat, medio, fecha,
+            tarjeta_id: conTarjeta && tarjeta ? tarjeta.id : null, rubro_id: x.r.id,
+          });
+          guardados++;
+        }
+        const periodo = estado?.periodos.find(p => p.id === mesMov);
+        if (periodo) setPeriodoId(periodo.id);
+        avisar(`${guardados} ${tipo === 'ingreso' ? 'ingresos registrados' : 'pagos registrados'} en ${periodo?.etiqueta ?? etiquetaMes(mesMov)}`);
+        cerrarRegistro();
+        return;
+      }
       await guardarMovimiento({
         id: edicion?.id, tipo, valor, descripcion: descripcion.trim() || item?.r.nombre || cat, categoria: cat, medio, fecha,
         tarjeta_id: conTarjeta && tarjeta ? tarjeta.id : null,
@@ -130,7 +191,13 @@ export function HojaRegistro() {
         avisar(`Guardado, pero ${etiquetaMes(mesMov)} está fuera del plan (${estado?.periodos[0]?.etiqueta} – ${estado?.periodos.at(-1)?.etiqueta})`);
       }
       cerrarRegistro();
-    } catch { /* el aviso ya se mostró */ } finally {
+    } catch {
+      // El aviso del error ya se mostró. Si eran varios y alguno alcanzó a guardarse, se quita de la lista.
+      if (varios && guardados > 0) {
+        avisar(`Se guardaron ${guardados} de ${elegidos.length}. Revisa los que faltan y vuelve a intentar.`);
+        aplicarAuto(elegidos.slice(guardados).map(x => x.r.id), montos);
+      }
+    } finally {
       setEnviando(false);
     }
   }
@@ -158,7 +225,9 @@ export function HojaRegistro() {
             </BotonSecundario>
           )}
           <BotonAcento type="submit" form="form-registro" className="min-w-0 flex-1" disabled={enviando}>
-            {enviando ? 'Guardando…' : edicion ? 'Guardar cambios' : tipo === 'ingreso' ? 'Registrar ingreso' : 'Registrar egreso'}
+            {enviando ? 'Guardando…' : edicion ? 'Guardar cambios'
+              : varios ? `Registrar ${elegidos.length} ${tipo === 'ingreso' ? 'ingresos' : 'pagos'}`
+              : tipo === 'ingreso' ? 'Registrar ingreso' : 'Registrar egreso'}
           </BotonAcento>
         </div>
       }
@@ -167,11 +236,18 @@ export function HojaRegistro() {
         <Segmentado
           etiqueta="Tipo de movimiento"
           valor={tipo}
-          onChange={setTipo}
+          onChange={t => { if (t !== tipo) soltarItems(); setTipo(t); }}
           opciones={[{ valor: 'egreso', etiqueta: '− Egreso', tono: 'neg' }, { valor: 'ingreso', etiqueta: '+ Ingreso', tono: 'pos' }]}
         />
         <Campo etiqueta="Valor" htmlFor="r-valor">
-          <EntradaDinero id="r-valor" grande valor={valor} onValor={setValor} placeholder="0" autoFocus={!borrador} />
+          <EntradaDinero id="r-valor" grande valor={valor} onValor={cambiarValor} placeholder="0" autoFocus={!borrador} readOnly={varios} />
+          {varios && <p className="mt-1 text-[12px] text-muted">Es la suma de los {elegidos.length} ítems. Cambia el monto de cada uno abajo.</p>}
+        </Campo>
+
+        <Campo etiqueta="Descripción" htmlFor="r-desc">
+          <Entrada id="r-desc" value={descripcion} onChange={e => { setDescripcion(e.target.value); if (auto && !varios) setAuto(false); }}
+            readOnly={varios} placeholder={tipo === 'ingreso' ? 'Ej: sueldo María' : 'Ej: tanqueada'} maxLength={160} />
+          {varios && <p className="mt-1 text-[12px] text-muted">Cada ítem se guarda como un movimiento con su nombre.</p>}
         </Campo>
 
         <div className="min-w-0">
@@ -181,7 +257,7 @@ export function HojaRegistro() {
               const elegida = c === cat;
               const Icono = iconoDe(c, estado?.categorias);
               return (
-                <button key={c} type="button" role="radio" aria-checked={elegida} onClick={() => setCategoria(c)}
+                <button key={c} type="button" role="radio" aria-checked={elegida} onClick={() => { if (c !== cat) soltarItems(); setCategoria(c); }}
                   className={cx('foco inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition active:scale-[0.97]',
                     elegida ? 'bg-accent-soft text-ink ring-2 ring-accent' : 'bg-surface-2 text-ink-2 hover:bg-surface-3')}>
                   <Icono className={cx('size-4 shrink-0', elegida ? 'text-accent-strong' : 'text-muted')} aria-hidden />
@@ -197,30 +273,44 @@ export function HojaRegistro() {
         {items.length > 0 && (
           <div className="min-w-0">
             <p id="r-item" className="mb-1.5 text-[12px] font-semibold text-muted">
-              ¿Qué ítem de {cat}? <span className="font-normal">(opcional)</span>
+              {multiple
+                ? <>¿Qué {tipo === 'ingreso' ? 'recibes' : 'pagas'} de {cat}? <span className="font-normal">(puedes elegir varios)</span></>
+                : <>¿Qué ítem de {cat}? <span className="font-normal">(opcional)</span></>}
             </p>
-            <div role="radiogroup" aria-labelledby="r-item" className="flex flex-col gap-1.5">
+            {multiple && !elegidos.length && (
+              <p className="-mt-0.5 mb-2 text-[12px] text-muted">Al elegirlos se llena el valor con lo que falta de cada uno.</p>
+            )}
+            <div role={multiple ? 'group' : 'radiogroup'} aria-labelledby="r-item" className="flex flex-col gap-1.5">
               {items.map(x => {
-                const elegido = rubroId === x.r.id;
+                const elegido = seleccion.includes(x.r.id);
                 const queda = x.plan - x.antes;
                 return (
-                  <button key={x.r.id} type="button" role="radio" aria-checked={elegido} onClick={() => elegirItem(elegido ? null : x.r)}
-                    className={cx('foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left transition',
-                      elegido ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-2 hover:bg-surface-3')}>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] font-semibold">{x.r.nombre}</span>
-                      <span className="block truncate text-[11px] text-muted">
-                        {!x.plan
-                          ? `Sin presupuesto en ${etiquetaMes(mesMov)}`
-                          : tipo === 'ingreso'
-                            ? `Esperado ${cop(x.plan)}${x.antes ? ` · recibido ${cop(x.antes)}` : ''}`
-                            : `Presupuesto ${cop(x.plan)} · ${queda >= 0 ? `quedan ${cop(queda)}` : `pasado ${cop(-queda)}`}`}
+                  <div key={x.r.id} className={cx('min-w-0 rounded-xl transition', elegido ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-2 hover:bg-surface-3')}>
+                    <button type="button" role={multiple ? 'checkbox' : 'radio'} aria-checked={elegido} onClick={() => elegirItem(x)}
+                      className="foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-semibold">{x.r.nombre}</span>
+                        <span className="block truncate text-[11px] text-muted">
+                          {!x.plan
+                            ? `Sin presupuesto en ${etiquetaMes(mesMov)}`
+                            : tipo === 'ingreso'
+                              ? `Esperado ${cop(x.plan)}${x.antes ? ` · recibido ${cop(x.antes)}` : ''}`
+                              : `Presupuesto ${cop(x.plan)} · ${queda > 0 ? `quedan ${cop(queda)}` : queda === 0 ? (x.antes ? 'ya está pago' : 'quedan $ 0') : `pasado ${cop(-queda)}`}`}
+                        </span>
                       </span>
-                    </span>
-                    <span className={cx('grid size-5 shrink-0 place-items-center rounded-full border-2', elegido ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line bg-surface')}>
-                      {elegido && <Check className="size-3" strokeWidth={3} />}
-                    </span>
-                  </button>
+                      <span className={cx('grid size-5 shrink-0 place-items-center border-2', multiple ? 'rounded-md' : 'rounded-full',
+                        elegido ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line bg-surface')}>
+                        {elegido && <Check className="size-3" strokeWidth={3} />}
+                      </span>
+                    </button>
+                    {varios && elegido && (
+                      <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
+                        <label htmlFor={`r-monto-${x.r.id}`} className="text-[12px] font-semibold text-ink-2">{tipo === 'ingreso' ? 'Recibes' : 'Pagas'}</label>
+                        <EntradaDinero id={`r-monto-${x.r.id}`} valor={montos[x.r.id] ?? 0} placeholder="0" className="w-40 [&_input]:h-10 [&_input]:bg-surface"
+                          onValor={v => aplicarAuto(seleccion, { ...montos, [x.r.id]: v })} />
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -240,10 +330,6 @@ export function HojaRegistro() {
             {conEste > planCat && <p className="mt-1.5 font-semibold text-neg-text">Te pasas {cop(conEste - planCat)} del presupuesto de la categoría</p>}
           </div>
         )}
-
-        <Campo etiqueta="Descripción" htmlFor="r-desc">
-          <Entrada id="r-desc" value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder={tipo === 'ingreso' ? 'Ej: sueldo María' : 'Ej: tanqueada'} maxLength={160} />
-        </Campo>
 
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
           <Campo etiqueta="Fecha" htmlFor="r-fecha">

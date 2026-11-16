@@ -5,10 +5,12 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { configSupabase } from './lib/supabase/config';
 
-const PUBLICAS = new Set(['/login', '/auth/callback', '/api/auth/config', '/api/auth/registro']);
+const PUBLICAS = new Set([
+  '/login', '/auth/callback', '/auth/confirmar', '/api/auth/config', '/api/auth/registro', '/api/auth/recuperar', '/api/auth/reenviar',
+]);
 const PUBLICAS_PREFIJO = ['/invitacion/', '/api/invitacion/'];
 /** Pantallas que no necesitan un cuaderno elegido */
-const SIN_CUADERNO = ['/cuadernos', '/login', '/invitacion/', '/auth/'];
+const SIN_CUADERNO = ['/cuadernos', '/login', '/invitacion/', '/auth/', '/bienvenida', '/restablecer'];
 
 function redirigir(req: NextRequest, res: NextResponse, ruta: string, conVolver: boolean) {
   const destino = req.nextUrl.clone();

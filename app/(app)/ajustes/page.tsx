@@ -1,7 +1,7 @@
 'use client';
 import { CircleAlert, Download, Eraser, FileSpreadsheet, Layers, Monitor, Moon, RotateCcw, Share, Smartphone, SquarePlus, Sun, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { TarjetaCuaderno, TarjetaCuenta, TarjetaPersonas } from '@/components/cuenta';
+import { TarjetaCuaderno, TarjetaCuenta, TarjetaInvitarApp, TarjetaPersonas } from '@/components/cuenta';
 import { EstadoConexion } from '@/components/navegacion';
 import { useDatos } from '@/components/proveedor';
 import { ConDatos } from '@/components/shell';
@@ -78,6 +78,7 @@ function VistaAjustes() {
           <TarjetaCuaderno />
           <TarjetaPersonas />
           <TarjetaCuenta />
+          <TarjetaInvitarApp />
           <Tarjeta titulo="Apariencia" subtitulo="El modo oscuro también cuida la batería en pantallas OLED">
             <div role="radiogroup" aria-label="Tema" className="grid grid-cols-3 gap-2">
               {([['sistema', 'Sistema', Monitor], ['claro', 'Claro', Sun], ['oscuro', 'Oscuro', Moon]] as const).map(([v, l, I]) => (

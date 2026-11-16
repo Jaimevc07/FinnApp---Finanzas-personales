@@ -1,7 +1,7 @@
 'use client';
 // Página del enlace de invitación: muestra a qué cuaderno y con qué permiso, y permite unirse
 // creando la cuenta (si el correo no tiene una), iniciando sesión o, con la sesión abierta, aceptando.
-import { CircleAlert, Eye, EyeOff, Mail } from 'lucide-react';
+import { CircleAlert, Eye, EyeOff, Mail, MailCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { elegirCuaderno } from '@/lib/cuaderno-cliente';
 import { primerNombre } from '@/lib/miembros';
@@ -33,6 +33,8 @@ export function AceptarInvitacion({ token }: { token: string }) {
   const [ver, setVer] = useState(false);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [porConfirmar, setPorConfirmar] = useState(false);
+  const [reenviado, setReenviado] = useState(false);
 
   useEffect(() => {
     fetch(`/api/invitacion/${encodeURIComponent(token)}`, { cache: 'no-store' })
@@ -43,8 +45,12 @@ export function AceptarInvitacion({ token }: { token: string }) {
   async function aceptar(body: Record<string, string> = {}) {
     const r = await fetch(`/api/invitacion/${encodeURIComponent(token)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || 'No se pudo aceptar la invitación');
-    return d.cuadernoId as number;
+    if (!r.ok) {
+      // El correo ya tenía cuenta en Supabase: se pasa a "entra con tu contraseña"
+      if (d.codigo === 'cuenta-existe') setInfo(i => (i ? { ...i, cuentaExiste: true } : i));
+      throw new Error(d.error || 'No se pudo aceptar la invitación');
+    }
+    return d as { cuadernoId: number; confirmar?: boolean };
   }
 
   async function unirse(e?: React.FormEvent) {
@@ -56,15 +62,23 @@ export function AceptarInvitacion({ token }: { token: string }) {
       const supabase = supabaseNavegador();
       let id: number;
       if (info.sesion) {
-        id = await aceptar();
+        id = (await aceptar()).cuadernoId;
       } else if (info.cuentaExiste) {
         const { error: e1 } = await supabase.auth.signInWithPassword({ email: info.correo, password: contrasena });
         if (e1) throw new Error(traducir(e1.message));
-        id = await aceptar();
+        id = (await aceptar()).cuadernoId;
       } else {
         if (!nombre.trim()) throw new Error('Escribe tu nombre');
         if (contrasena.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
-        id = await aceptar({ nombre: nombre.trim(), contrasena });
+        const r = await aceptar({ nombre: nombre.trim(), contrasena });
+        id = r.cuadernoId;
+        if (r.confirmar) {
+          // Falta confirmar el correo: al abrir el enlace entra directo
+          elegirCuaderno(id);
+          setPorConfirmar(true);
+          setEnviando(false);
+          return;
+        }
         const { error: e1 } = await supabase.auth.signInWithPassword({ email: info.correo, password: contrasena });
         if (e1) throw new Error(traducir(e1.message));
       }
@@ -108,6 +122,23 @@ export function AceptarInvitacion({ token }: { token: string }) {
           <p className="text-[14px] text-ink-2">Revisa que el enlace esté completo o pide a quien te invitó que te envíe uno nuevo.</p>
         ) : !info ? (
           <div className="flex flex-col gap-4" aria-busy="true"><Esqueleto className="h-[72px]" /><Esqueleto className="h-12" /></div>
+        ) : porConfirmar ? (
+          <div className="flex flex-col gap-4 text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-pos-soft text-pos-text"><MailCheck className="size-6" /></span>
+            <div>
+              <p className="text-[16px] font-semibold">Revisa tu correo</p>
+              <p className="mt-1 text-[13px] text-ink-2">
+                Te enviamos un enlace a <b className="font-semibold">{info.correo}</b> para confirmar tu cuenta. Al abrirlo entras directo a «{info.cuaderno}».
+              </p>
+              <p className="mt-2 text-[12px] text-muted">¿No llega? Revisa la carpeta de spam o pide que te lo envíen otra vez.</p>
+            </div>
+            <BotonSecundario className="w-full" disabled={reenviado} onClick={async () => {
+              const r = await fetch('/api/auth/reenviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: info.correo }) });
+              const d = await r.json().catch(() => ({}));
+              if (r.ok) setReenviado(true); else setError(d.error || 'No se pudo enviar el correo');
+            }}>{reenviado ? 'Correo enviado otra vez' : 'Enviar el correo otra vez'}</BotonSecundario>
+            {error && <p role="alert" className="rounded-2xl bg-neg-soft p-3 text-[13px] font-semibold text-neg-text">{error}</p>}
+          </div>
         ) : info.estado !== 'pendiente' ? (
           <div className="flex flex-col gap-4">
             <p className="text-[14px] text-ink-2">

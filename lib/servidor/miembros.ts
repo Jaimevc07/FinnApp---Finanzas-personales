@@ -1,5 +1,5 @@
-// Cuentas de la app (Supabase Auth). Se crean desde el servidor con la clave secreta, ya confirmadas:
-// la primera vez (quien administra) y al aceptar una invitación a un cuaderno.
+// Cuentas de la app (Supabase Auth). La primera (quien administra) se crea ya confirmada desde el
+// servidor; las demás se confirman por correo (ver correo.ts), y si el correo no sale se crean así.
 import { supabaseAdmin } from '../supabase/servidor';
 import { ejecutar, transaccion, una } from './db';
 import { registrar } from './repo';

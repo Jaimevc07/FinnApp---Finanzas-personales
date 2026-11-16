@@ -110,6 +110,107 @@ function HojaCuenta({ edicion, onCerrar }: { edicion: EdicionCuenta | null; onCe
   );
 }
 
+/* ---------------- Invitar a la app ---------------- */
+type Invitado = { estado: 'enviado' | 'ya-tenia' | 'enlace'; correo: string; nombre: string; enlace?: string; motivo?: 'reenvio' | 'correo' };
+
+/** Invitar a alguien nuevo a la app (no a un cuaderno): tendrá su propia cuenta y sus propios cuadernos. */
+export function TarjetaInvitarApp() {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <Tarjeta titulo="Invitar a la app" subtitulo="Para que alguien nuevo tenga su propia cuenta y arme sus propios cuadernos"
+      accion={<PastillaSuave icono={UserPlus} onClick={() => setAbierta(true)}>Invitar</PastillaSuave>}>
+      <p className="flex items-start gap-2 rounded-2xl bg-surface-2 p-3 text-[12px] text-ink-2">
+        <Mail className="mt-0.5 size-4 shrink-0 text-muted" />
+        <span>Le llega un correo para crear su contraseña. No verá tus cuadernos: si quieres compartirle uno, invítala desde «Personas en este cuaderno».</span>
+      </p>
+      <HojaInvitarApp abierta={abierta} onCerrar={() => setAbierta(false)} />
+    </Tarjeta>
+  );
+}
+
+function HojaInvitarApp({ abierta, onCerrar }: { abierta: boolean; onCerrar: () => void }) {
+  const { estado, avisar } = useDatos();
+  const [nombre, setNombre] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [listo, setListo] = useState<Invitado | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  useEffect(() => { if (abierta) { setNombre(''); setCorreo(''); setListo(null); setCopiado(false); } }, [abierta]);
+
+  async function invitar(e: React.FormEvent) {
+    e.preventDefault();
+    const c = correo.trim().toLowerCase();
+    if (!nombre.trim()) return avisar('Escribe el nombre');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)) return avisar('Escribe un correo válido');
+    setEnviando(true);
+    try {
+      const r = await fetch('/api/auth/invitar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: nombre.trim(), correo: c }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudo invitar');
+      setListo({ ...d, nombre: nombre.trim() });
+    } catch (err) {
+      avisar(err instanceof Error ? err.message : 'No se pudo invitar');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const yo = estado.miembros.find(m => m.usuario_id === estado.yo);
+  const mensaje = listo?.enlace
+    ? `Hola ${primerNombre(listo.nombre)}: ${yo ? primerNombre(yo.nombre) : 'Te'} te invitó a Finanzas Hogar, una app para organizar las finanzas. Entra con este enlace y crea tu contraseña: ${listo.enlace}`
+    : '';
+  const puedeCompartir = typeof navigator !== 'undefined' && 'share' in navigator;
+
+  return (
+    <Hoja siempreActiva abierta={abierta} onCerrar={onCerrar}
+      titulo={listo ? (listo.estado === 'enlace' ? 'Envíale el enlace' : 'Invitación lista') : 'Invitar a la app'}
+      subtitulo={listo ? listo.correo : 'Tendrá su propia cuenta. No verá tus cuadernos a menos que la invites a uno.'}
+      pie={listo
+        ? <BotonSecundario className="w-full" onClick={onCerrar}>Cerrar</BotonSecundario>
+        : <BotonAcento type="submit" form="form-invitar-app" className="w-full" disabled={enviando}>{enviando ? 'Enviando…' : 'Enviar invitación'}</BotonAcento>}>
+      {!listo ? (
+        <form id="form-invitar-app" onSubmit={invitar} className="flex flex-col gap-4">
+          <Campo etiqueta="Nombre" htmlFor="ia-nombre">
+            <Entrada id="ia-nombre" value={nombre} onChange={e => setNombre(e.target.value)} maxLength={60} autoComplete="off" placeholder="Ej: Laura" autoFocus />
+          </Campo>
+          <Campo etiqueta="Correo" htmlFor="ia-correo">
+            <Entrada id="ia-correo" type="email" inputMode="email" autoComplete="off" value={correo} onChange={e => setCorreo(e.target.value)} placeholder="laura@correo.com" />
+          </Campo>
+          <p className="text-[12px] text-muted">Le llega un correo de Finanzas Hogar con un enlace para crear su contraseña. El enlace sirve una sola vez.</p>
+        </form>
+      ) : listo.estado === 'enviado' ? (
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <span className="grid size-12 place-items-center rounded-2xl bg-pos-soft text-pos-text"><Send className="size-5" /></span>
+          <p className="text-[14px] text-ink-2">Le enviamos un correo a <b className="font-semibold">{listo.correo}</b> para que cree su contraseña. Si no le llega, que revise la carpeta de spam.</p>
+        </div>
+      ) : listo.estado === 'ya-tenia' ? (
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <span className="grid size-12 place-items-center rounded-2xl bg-pos-soft text-pos-text"><UserRoundCheck className="size-5" /></span>
+          <p className="text-[14px] text-ink-2"><b className="font-semibold">{listo.correo}</b> ya tenía cuenta: ahora puede entrar a la app con su correo y contraseña (o recuperarla desde el inicio de sesión).</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="rounded-2xl bg-warn-soft p-3 text-[12px] font-semibold text-warn-text">
+            {listo.motivo === 'reenvio'
+              ? 'Ya la habías invitado y aún no entra. Envíale este enlace nuevo.'
+              : 'El correo no salió (falta configurar el envío de correos en Supabase). Envíale este enlace por WhatsApp o como prefieras.'}
+          </p>
+          <div className="flex items-center gap-2 rounded-2xl bg-surface-2 p-3">
+            <p className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{listo.enlace}</p>
+            <PastillaSuave icono={copiado ? Check : Copy} tono="neutro" onClick={async () => {
+              try { await navigator.clipboard.writeText(listo.enlace!); setCopiado(true); avisar('Enlace copiado'); } catch { avisar('No se pudo copiar: selecciónalo y cópialo'); }
+            }}>{copiado ? 'Copiado' : 'Copiar'}</PastillaSuave>
+          </div>
+          <BotonAcento className="w-full" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener')}><Send /> Enviar por WhatsApp</BotonAcento>
+          <BotonSecundario className="w-full" onClick={() => { window.location.href = `mailto:${listo.correo}?subject=${encodeURIComponent('Te invito a Finanzas Hogar')}&body=${encodeURIComponent(mensaje)}`; }}><Mail /> Enviar por correo</BotonSecundario>
+          {puedeCompartir && <BotonSecundario className="w-full" onClick={() => navigator.share({ title: 'Finanzas Hogar', text: mensaje }).catch(() => {})}><Share2 /> Compartir…</BotonSecundario>}
+          <p className="text-[12px] text-muted">El enlace es personal y sirve una sola vez: quien lo abra entra a esa cuenta.</p>
+        </div>
+      )}
+    </Hoja>
+  );
+}
+
 /* ---------------- Este cuaderno ---------------- */
 export function TarjetaCuaderno() {
   const { estado, esPropietario, editarCuaderno, eliminarCuaderno, salirDelCuaderno, cambiarDeCuaderno, avisar } = useDatos();
