@@ -7,7 +7,7 @@ import { useDatos } from './proveedor';
 import { cx } from './ui/botones';
 import { Insignia } from './ui/datos';
 import { Tarjeta } from './ui/estructura';
-import { planVsReal, type ItemPlanReal, type PlanVsReal } from '@/lib/calculos';
+import { esFlexible, planVsReal, type ItemPlanReal, type PlanVsReal } from '@/lib/calculos';
 import { cop, fechaCorta, numero } from '@/lib/formato';
 
 type Resultado = ReturnType<typeof planVsReal>;
@@ -35,26 +35,39 @@ export function Leyenda({ color, etiqueta, valor, tono }: { color: string; etiqu
   );
 }
 
-/** Si un ítem del presupuesto ya se pagó: "Pagado", "Pagado · $X de más" o lo que falta. */
-export function EstadoPago({ x, sinPagar }: { x: ItemPlanReal; sinPagar?: boolean }) {
+/** Si un ítem del presupuesto ya se pagó (o se recibió, en ingresos): "Pagado", "Pagado · $X de más" o lo que falta. */
+export function EstadoPago({ x, sinPagar, tipo = 'egreso', flexible }: { x: ItemPlanReal; sinPagar?: boolean; tipo?: 'egreso' | 'ingreso'; flexible?: boolean }) {
+  // Gasto flexible: se gasta de a poco; puede quedar por debajo del presupuesto o pasarse
+  if (flexible && tipo === 'egreso') {
+    if (x.plan > 0 && x.exceso > 0) return <span className="text-[12px] font-semibold text-neg-text">Gastado {cop(x.real)} · se pasó {cop(x.exceso)}</span>;
+    if (x.plan > 0 && x.pendiente === 0) return <Insignia tono="neutro"><CircleCheck className="size-3" /> Presupuesto usado</Insignia>;
+    if (x.exceso > 0) return <span className="text-[12px] font-semibold text-neg-text">Sin presupuesto este mes</span>;
+    if (x.real > 0) return <span className="text-[12px] text-muted">Gastado {cop(x.real)} · quedan <b className="font-semibold text-ink-2">{cop(x.pendiente)}</b></span>;
+    return sinPagar ? <span className="text-[12px] text-muted">Sin gastos</span> : null;
+  }
+  const hecho = tipo === 'ingreso' ? 'Recibido' : 'Pagado';
+  const tonoMas = tipo === 'ingreso' ? 'pos' : 'neg';
   if (x.plan > 0 && x.exceso > 0) return (
     <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-      <Insignia tono="neg"><CircleCheck className="size-3" /> Pagado</Insignia>
-      <span className="text-[12px] font-semibold text-neg-text">{cop(x.exceso)} de más</span>
+      <Insignia tono={tonoMas}><CircleCheck className="size-3" /> {hecho}</Insignia>
+      <span className={cx('text-[12px] font-semibold', tipo === 'ingreso' ? 'text-pos-text' : 'text-neg-text')}>{tipo === 'ingreso' ? '+' : ''}{cop(x.exceso)} de más</span>
     </span>
   );
-  if (x.plan > 0 && x.pendiente === 0) return <Insignia tono="pos"><CircleCheck className="size-3" /> Pagado</Insignia>;
-  if (x.exceso > 0) return <span className="text-[12px] font-semibold text-neg-text">Sin presupuesto este mes</span>;
-  if (x.real > 0) return <span className="text-[12px] text-muted">Pagado {cop(x.real)} · faltan <b className="font-semibold text-ink-2">{cop(x.pendiente)}</b></span>;
-  return sinPagar ? <span className="text-[12px] text-muted">Sin pagar</span> : null;
+  if (x.plan > 0 && x.pendiente === 0) return <Insignia tono="pos"><CircleCheck className="size-3" /> {hecho}</Insignia>;
+  if (x.exceso > 0) return <span className={cx('text-[12px] font-semibold', tipo === 'ingreso' ? 'text-pos-text' : 'text-neg-text')}>{tipo === 'ingreso' ? `Recibido ${cop(x.real)} · no estaba en el plan` : 'Sin presupuesto este mes'}</span>;
+  if (x.real > 0) return <span className="text-[12px] text-muted">{hecho} {cop(x.real)} · faltan <b className="font-semibold text-ink-2">{cop(x.pendiente)}</b></span>;
+  return sinPagar ? <span className="text-[12px] text-muted">{tipo === 'ingreso' ? 'Sin recibir' : 'Sin pagar'}</span> : null;
 }
 
 /** Si todos los ítems de una categoría ya se pagaron (y si se gastó de más). */
 export function EstadoCategoria({ f, corto }: { f: PlanVsReal; corto?: boolean }) {
+  const { estado } = useDatos();
   if (!(f.plan > 0 && Math.round(f.pendiente) === 0)) return null;
+  // Si todo es flexible no se "paga": se usa el presupuesto
+  const texto = f.items.length && f.items.every(x => esFlexible(estado, x.rubro)) ? 'Presupuesto usado' : 'Todo pagado';
   return Math.round(f.fueraDelPlan) > 0
-    ? <Insignia tono="neg"><CircleCheck className="size-3" /> Todo pagado{corto ? '' : ` · ${cop(f.fueraDelPlan)} de más`}</Insignia>
-    : <Insignia tono="pos"><CircleCheck className="size-3" /> Todo pagado</Insignia>;
+    ? <Insignia tono="neg"><CircleCheck className="size-3" /> {texto}{corto ? '' : ` · ${cop(f.fueraDelPlan)} de más`}</Insignia>
+    : <Insignia tono="pos"><CircleCheck className="size-3" /> {texto}</Insignia>;
 }
 
 /** Gastos del mes que no tienen ítem del presupuesto: van al final de la categoría, solo en ese mes. */
@@ -206,6 +219,8 @@ function DetalleCategoria({ f, mes }: { f: PlanVsReal; mes: string }) {
 }
 
 function FilaItem({ x }: { x: ItemPlanReal }) {
+  const { estado } = useDatos();
+  const flexible = esFlexible(estado, x.rubro);
   const pagado = x.plan > 0 && x.pendiente === 0;
   return (
     <li className="flex gap-2.5">
@@ -222,7 +237,7 @@ function FilaItem({ x }: { x: ItemPlanReal }) {
             <BarraMes enPlan={Math.min(x.real, x.plan)} pendiente={x.pendiente} fuera={x.exceso} escala={Math.max(x.plan, x.real)} alto="h-1.5" />
           </div>
         )}
-        <div className="mt-1"><EstadoPago x={x} sinPagar /></div>
+        <div className="mt-1"><EstadoPago x={x} sinPagar flexible={flexible} /></div>
       </div>
     </li>
   );

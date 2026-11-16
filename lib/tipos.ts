@@ -56,7 +56,11 @@ export type Rubro = {
   /** true: se repite todos los meses · false: solo aparece en los meses que tienen valor (primas, bonos, pagos únicos). */
   recurrente: boolean;
   icono: string | null;
+  /** Fijo (se paga completo) o flexible (se gasta de a poco). Nulo = como su categoría. */
+  control?: ControlRubro | null;
 };
+
+export type ControlRubro = 'fijo' | 'flexible';
 
 export type Celda = { valor: number; auto: boolean };
 
@@ -220,6 +224,7 @@ export type DatosRubro = {
   dia_corte?: number | null;
   dia_pago?: number | null;
   recurrente?: boolean;
+  control?: ControlRubro | null;
   icono?: string | null;
   /** Valor por mes (AAAA-MM). Si viene, reemplaza todos los valores del rubro. */
   valores?: Record<string, number>;

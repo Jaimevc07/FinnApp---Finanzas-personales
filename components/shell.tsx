@@ -7,6 +7,7 @@ import { HojaRegistro } from './hoja-registro';
 import { TirarParaActualizar } from './tirar-para-actualizar';
 import { BarraLateral, NavegacionInferior } from './navegacion';
 import { useFinanzas } from './proveedor';
+import { cx } from './ui/botones';
 import { Esqueleto } from './ui/estructura';
 
 function AbrirDesdeAtajo() {
@@ -20,7 +21,7 @@ function AbrirDesdeAtajo() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { aviso, conexion, estado, puedeEditar } = useFinanzas();
+  const { aviso, avisoAccion, conexion, estado, puedeEditar } = useFinanzas();
   return (
     <div className="min-h-dvh lg:flex">
       <BarraLateral />
@@ -48,7 +49,15 @@ export function Shell({ children }: { children: ReactNode }) {
         className="pointer-events-none fixed inset-x-0 bottom-[calc(88px+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 lg:bottom-8"
       >
         {aviso && (
-          <p className="pointer-events-auto rounded-2xl bg-ink px-4 py-3 text-[13px] font-medium text-on-ink shadow-fin">{aviso}</p>
+          <p className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-ink py-3 pr-2 pl-4 text-[13px] font-medium text-on-ink shadow-fin">
+            <span className={cx(!avisoAccion && 'pr-2')}>{aviso}</span>
+            {avisoAccion && (
+              <button type="button" onClick={avisoAccion.fn}
+                className="foco -my-2 h-10 shrink-0 rounded-xl px-3 font-bold underline underline-offset-2 transition hover:opacity-80">
+                {avisoAccion.etiqueta}
+              </button>
+            )}
+          </p>
         )}
       </div>
     </div>

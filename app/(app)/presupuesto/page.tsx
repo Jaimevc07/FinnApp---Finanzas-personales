@@ -1,5 +1,5 @@
 'use client';
-import { ArrowDownLeft, ArrowRight, CalendarDays, CalendarMinus, CalendarPlus, ChevronDown, CircleCheck, Copy, CreditCard, Ellipsis, FolderPlus, Plane, Plus, Repeat, Sparkles, Target, Trash2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowRight, CalendarDays, CalendarMinus, CalendarPlus, ChevronDown, Circle, CircleCheck, Copy, CreditCard, Ellipsis, Eraser, FolderPlus, Plane, Plus, Repeat, Sparkles, Target, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { HojaDeuda, HojaEvento, type EventoSel } from '@/components/deudas';
@@ -15,12 +15,12 @@ import { Hoja } from '@/components/ui/hoja';
 import { Segmentado } from '@/components/ui/segmentado';
 import { SelectorIcono } from '@/components/ui/selector-icono';
 import { SelectorMeses } from '@/components/ui/selector-meses';
-import { calcularMetas, mesesConValor, movimientosDe, planDeudas, planVsReal, realPorCategoria, rubroVisible, valorCelda, type ItemPlanReal } from '@/lib/calculos';
+import { calcularMetas, esFlexible, mesesConValor, movimientosDe, planDeudas, planVsReal, realPorCategoria, recibidoPorRubro, rubroVisible, valorCelda, type ItemPlanReal } from '@/lib/calculos';
 import { EstadoCategoria, EstadoPago, GastosExtra } from '@/components/plan-vs-real';
-import { conSigno, cop, copCorto, delta, fechaCorta, numero, pct } from '@/lib/formato';
+import { conSigno, cop, copCorto, delta, fechaCorta, hoyISO, numero, pct } from '@/lib/formato';
 import { iconoCategoria } from '@/lib/iconos';
 import { diaSueldo, etiquetaMes, mesAnterior, mesSiguiente } from '@/lib/meses';
-import { claveCelda, CONTROLES, type Categoria, type DatosRubro, type Meta, type Periodo, type Rubro, type Seccion } from '@/lib/tipos';
+import { claveCelda, CONTROLES, MEDIOS_PAGO, type Categoria, type ControlRubro, type DatosRubro, type Meta, type Periodo, type Rubro, type Seccion } from '@/lib/tipos';
 
 type Grupo = 'ingreso' | 'operativo' | 'compromisos' | 'ahorro';
 const GRUPOS: { valor: Grupo; etiqueta: string; titulo: string; secciones: Seccion[] }[] = [
@@ -82,6 +82,7 @@ function PorMes() {
   const [nuevoEn, setNuevoEn] = useState<Categoria | null>(null);
   const [categoria, setCategoria] = useState<{ abierta: boolean; cat: Categoria | null }>({ abierta: false, cat: null });
   const [copiando, setCopiando] = useState(false);
+  const [vaciando, setVaciando] = useState(false);
   // Categorías donde se despliegan los rubros de otros meses, y rubros que se están editando
   // (no se esconden aunque queden en $ 0 mientras se escribe). Se reinician al cambiar de mes.
   const [abiertas, setAbiertas] = useState<Set<number>>(new Set());
@@ -97,6 +98,7 @@ function PorMes() {
   // Lo pagado de cada ítem y los gastos extra (sin ítem) del mes, por categoría
   const pvr = planVsReal(estado, periodoId, fila);
   const pagos = new Map(pvr.filas.flatMap(f => f.items).map(x => [x.rubro.id, x]));
+  const recibidos = recibidoPorRubro(estado, periodoId);
   const alternar = (id: number) => setAbiertas(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
@@ -116,8 +118,11 @@ function PorMes() {
             <MiniCifra etiqueta="Viajes y eventos" valor={fila.eventos} />
             <MiniCifra etiqueta="Ahorro y metas" valor={fila.ahorro} />
           </div>
-          {!mesVacio && estado.periodos.length > 1 && (
-            <PastillaSuave icono={Copy} tono="neutro" className="mt-4" onClick={() => setCopiando(true)}>Copiar de otro mes</PastillaSuave>
+          {!mesVacio && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {estado.periodos.length > 1 && <PastillaSuave icono={Copy} tono="neutro" onClick={() => setCopiando(true)}>Copiar de otro mes</PastillaSuave>}
+              <PastillaSuave icono={Eraser} tono="neutro" onClick={() => setVaciando(true)}>Dejar en $ 0</PastillaSuave>
+            </div>
           )}
         </Tarjeta>
         {mesVacio && sugerido && (
@@ -134,6 +139,7 @@ function PorMes() {
         )}
       </div>
       <HojaCopiarMes abierta={copiando} onCerrar={() => setCopiando(false)} desdeSugerido={sugerido?.id} />
+      <HojaVaciarMes abierta={vaciando} onCerrar={() => setVaciando(false)} />
 
       <div className="flex flex-col gap-4 lg:col-span-8">
         <Segmentado etiqueta="Sección del presupuesto" valor={grupo} onChange={setGrupo} opciones={GRUPOS} />
@@ -142,7 +148,7 @@ function PorMes() {
         {(grupo === 'ingreso' || grupo === 'operativo') && cats.map(cat => {
           const todos = estado.rubros.filter(r => r.categoria_id === cat.id);
           const abierta = abiertas.has(cat.id);
-          const rubros = todos.filter(r => abierta || retener.has(r.id) || rubroVisible(estado, r, periodoId) || (pagos.get(r.id)?.real ?? 0) > 0);
+          const rubros = todos.filter(r => abierta || retener.has(r.id) || rubroVisible(estado, r, periodoId) || (pagos.get(r.id)?.real ?? 0) > 0 || (recibidos.get(r.id)?.real ?? 0) > 0);
           const ocultos = todos.length - rubros.length;
           const Icono = iconoCategoria(cat);
           const plan = fila.porCategoria[cat.id] ?? 0;
@@ -161,7 +167,9 @@ function PorMes() {
               subtitulo={f && f.real > 0 ? (
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <EstadoCategoria f={f} />
-                  {Math.round(f.pendiente) > 0 && f.plan > 0 && <span>Pagado {cop(f.enPlan)} · faltan <b className="font-semibold text-ink-2">{cop(f.pendiente)}</b></span>}
+                  {Math.round(f.pendiente) > 0 && f.plan > 0 && (f.items.length && f.items.every(x => esFlexible(estado, x.rubro))
+                    ? <span>Gastado {cop(f.enPlan)} · quedan <b className="font-semibold text-ink-2">{cop(f.pendiente)}</b></span>
+                    : <span>Pagado {cop(f.enPlan)} · faltan <b className="font-semibold text-ink-2">{cop(f.pendiente)}</b></span>)}
                   {Math.round(f.pendiente) > 0 && f.fueraDelPlan > 0 && <span className="font-semibold text-neg-text">−{cop(f.fueraDelPlan)} de más</span>}
                   {f.plan === 0 && <span className="font-semibold text-neg-text">Gastado {cop(f.real)} · sin presupuesto</span>}
                 </span>
@@ -184,7 +192,8 @@ function PorMes() {
               {rubros.length > 0 ? (
                 <ul className="flex flex-col divide-y divide-line">
                   {rubros.map(r => (
-                    <FilaRubro key={r.id} rubro={r} periodoId={periodoId} onMas={() => setEditando(r)} pago={f ? pagos.get(r.id) : undefined}
+                    <FilaRubro key={r.id} rubro={r} periodoId={periodoId} onMas={() => setEditando(r)} pago={f ? pagos.get(r.id) : cat.seccion === 'ingreso' ? recibidos.get(r.id) : undefined}
+                      tipo={cat.seccion === 'ingreso' ? 'ingreso' : 'egreso'} categoria={cat.nombre}
                       onCambio={() => !r.recurrente && setRetener(s => new Set(s).add(r.id))}
                       detalle={!r.recurrente ? <MesesDelRubro rubro={r} /> : undefined} />
                   ))}
@@ -298,6 +307,73 @@ function HojaCopiarMes({ abierta, onCerrar, desdeSugerido }: { abierta: boolean;
   );
 }
 
+const SECCIONES_VACIAR: { valor: Seccion; etiqueta: string; ayuda: string; porDefecto: boolean; aviso?: boolean }[] = [
+  { valor: 'operativo', etiqueta: 'Gastos del hogar', ayuda: 'Vivienda, mercado, transporte, suscripciones…', porDefecto: true },
+  { valor: 'ahorro', etiqueta: 'Ahorro y metas', ayuda: 'Aportes del mes a las metas', porDefecto: true },
+  { valor: 'ingreso', etiqueta: 'Ingresos', ayuda: 'Sueldos y otros ingresos del mes', porDefecto: false },
+  { valor: 'deuda', etiqueta: 'Pagos de deudas', ayuda: 'Ojo: sin el pago, la deuda sigue creciendo desde este mes', porDefecto: false, aviso: true },
+  { valor: 'evento', etiqueta: 'Viajes y eventos', ayuda: 'Lo programado para este mes', porDefecto: false },
+];
+
+/** Deja en $ 0 el mes seleccionado (por secciones) para volver a organizarlo. */
+function HojaVaciarMes({ abierta, onCerrar }: { abierta: boolean; onCerrar: () => void }) {
+  const { fila, vaciarMes, avisar } = useDatos();
+  const [secciones, setSecciones] = useState<Seccion[]>([]);
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => {
+    if (abierta) setSecciones(SECCIONES_VACIAR.filter(s => s.porDefecto).map(s => s.valor));
+  }, [abierta]);
+  if (!fila) return null;
+  const totalDe = (s: Seccion) => s === 'ingreso' ? fila.ingresos : s === 'operativo' ? fila.operativo : s === 'ahorro' ? fila.ahorro : s === 'deuda' ? fila.deudas : fila.eventos;
+
+  return (
+    <Hoja
+      abierta={abierta}
+      onCerrar={onCerrar}
+      titulo={`Dejar ${fila.periodo.etiqueta} en $ 0`}
+      subtitulo="Para organizar el mes desde cero. Los rubros se quedan, solo sus valores pasan a $ 0"
+      pie={
+        <BotonAcento className="w-full" disabled={!secciones.length || guardando} onClick={async () => {
+          setGuardando(true);
+          try {
+            await vaciarMes(fila.periodo.id, secciones);
+            avisar(`${fila.periodo.etiqueta} quedó en $ 0 en lo elegido`);
+            onCerrar();
+          } catch { /* aviso ya mostrado */ } finally { setGuardando(false); }
+        }}>
+          <Eraser /> {guardando ? 'Dejando en $ 0…' : 'Dejar en $ 0'}
+        </BotonAcento>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1.5 text-[12px] font-semibold text-muted">Qué dejar en $ 0</legend>
+          {SECCIONES_VACIAR.map(s => {
+            const marcada = secciones.includes(s.valor);
+            return (
+              <label key={s.valor} className={cx('flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition', marcada ? 'border-accent bg-accent-soft' : 'border-line')}>
+                <input type="checkbox" checked={marcada} className="mt-0.5 size-5 shrink-0 accent-[var(--accent-fill)]"
+                  onChange={e => setSecciones(xs => e.target.checked ? [...xs, s.valor] : xs.filter(x => x !== s.valor))} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-[14px] font-semibold">{s.etiqueta}</span>
+                    <span className="text-[13px] font-semibold tabular-nums">{cop(totalDe(s.valor))}</span>
+                  </span>
+                  <span className={cx('block text-[12px]', s.aviso ? 'text-warn-text' : 'text-muted')}>{s.ayuda}</span>
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
+        <p className="flex items-start gap-2 text-[12px] text-muted">
+          <CalendarDays className="mt-px size-3.5 shrink-0" />
+          Solo cambia {fila.periodo.etiqueta}: los demás meses y los movimientos registrados no se tocan. Las deudas en dólares (calculadas con la TRM) se quedan como están.
+        </p>
+      </div>
+    </Hoja>
+  );
+}
+
 function Cifra({ etiqueta, valor, clase }: { etiqueta: string; valor: string; clase?: string }) {
   return (
     <div className="min-w-0">
@@ -379,24 +455,120 @@ function BotonMas({ etiqueta, onClick }: { etiqueta: string; onClick: () => void
   );
 }
 
-function FilaRubro({ rubro, periodoId, onMas, detalle, titulo, onCambio, pago }: {
+function FilaRubro({ rubro, periodoId, onMas, detalle, titulo, onCambio, pago, tipo = 'egreso', categoria }: {
   rubro: Rubro; periodoId: string; onMas: () => void; detalle?: React.ReactNode; titulo?: string; onCambio?: () => void;
-  /** Lo pagado de este ítem en el mes (Movimientos) */
+  /** Lo pagado (o recibido, en ingresos) de este ítem en el mes, según Movimientos */
   pago?: ItemPlanReal;
+  tipo?: 'egreso' | 'ingreso';
+  /** Categoría con que se registra el pago al marcarlo */
+  categoria?: string;
 }) {
-  const { estado } = useDatos();
+  const { estado, puedeEditar, registrarMovimiento, borrarMovimiento, avisar, abrirRegistro, actualizarRubro } = useDatos();
+  const [marcando, setMarcando] = useState(false);
   const auto = !!estado.valores[claveCelda(rubro.id, periodoId)]?.auto;
+  const ingreso = tipo === 'ingreso';
+  // Solo los gastos de las listas (con pago) se marcan como fijos o flexibles
+  const conControl = !!pago && !!categoria && !ingreso;
+  const flexible = conControl && esFlexible(estado, rubro);
+  const listo = !!pago && ((pago.plan > 0 && pago.pendiente === 0) || (pago.plan === 0 && pago.real > 0));
+  const hoy = hoyISO();
+  const fecha = hoy.startsWith(periodoId) ? hoy : `${periodoId}-01`;
+
+  /** Registra en Movimientos lo que falta de este ítem (todo, si no se ha pagado nada), con "Deshacer". */
+  async function marcar() {
+    if (!pago || !categoria || pago.pendiente <= 0) return;
+    const monto = pago.pendiente;
+    setMarcando(true);
+    try {
+      const id = await registrarMovimiento({
+        tipo, valor: monto, descripcion: rubro.nombre, categoria, medio: MEDIOS_PAGO[0], fecha, tarjeta_id: null, rubro_id: rubro.id,
+      });
+      avisar(`${rubro.nombre}: ${ingreso ? 'recibido' : 'pagado'} ${cop(monto)}`, id ? {
+        etiqueta: 'Deshacer',
+        fn: () => { borrarMovimiento(id).then(() => avisar('Listo, se deshizo')).catch(() => {}); },
+      } : undefined);
+    } catch { /* aviso ya mostrado */ } finally {
+      setMarcando(false);
+    }
+  }
+
+  /** Abre el registro con este ítem elegido, para escribir cuánto se gastó. */
+  const agregar = () => categoria && abrirRegistro({ tipo, categoria, rubro_id: rubro.id, descripcion: rubro.nombre, fecha });
+
+  /** Cambia el ítem entre fijo y flexible. */
+  async function cambiarControl() {
+    const nuevo = flexible ? 'fijo' : 'flexible';
+    try {
+      await actualizarRubro(rubro.id, { control: nuevo });
+      avisar(`${rubro.nombre} ahora es ${nuevo}`);
+    } catch { /* aviso ya mostrado */ }
+  }
+
+  const boton = 'foco relative inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-line pr-3 pl-2 text-[12px] font-semibold text-ink-2 transition after:absolute after:-inset-1.5 hover:border-ink hover:text-ink active:scale-[0.97] disabled:opacity-50';
+  const botonAgregar = puedeEditar && categoria && (
+    <button type="button" onClick={agregar} aria-label={`Agregar ${ingreso ? 'ingreso' : 'egreso'} a ${rubro.nombre}`} className={boton}>
+      <Plus className="size-4 text-muted" /> Agregar {ingreso ? 'ingreso' : 'egreso'}
+    </button>
+  );
+
   return (
     <li className="flex items-center gap-2 py-2">
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-[14px] leading-snug font-medium">{titulo ?? rubro.nombre}</p>
+        <p className="line-clamp-3 text-[14px] leading-snug font-medium">
+          {titulo ?? rubro.nombre}
+          {conControl && (
+            puedeEditar ? (
+              <button type="button" onClick={cambiarControl} title="Tocar para cambiar"
+                aria-label={`${rubro.nombre} es ${flexible ? 'flexible' : 'fijo'}. Cambiar a ${flexible ? 'fijo' : 'flexible'}`}
+                className={cx('foco relative ml-1.5 inline-flex h-5 items-center rounded-full px-1.5 align-[2px] text-[10px] font-semibold after:absolute after:-inset-2.5', flexible ? 'bg-accent-soft text-accent-strong' : 'bg-surface-2 text-ink-2')}>
+                {flexible ? 'Flexible' : 'Fijo'}
+              </button>
+            ) : (
+              <span className={cx('ml-1.5 inline-flex h-5 items-center rounded-full px-1.5 align-[2px] text-[10px] font-semibold', flexible ? 'bg-accent-soft text-accent-strong' : 'bg-surface-2 text-ink-2')}>
+                {flexible ? 'Flexible' : 'Fijo'}
+              </span>
+            )
+          )}
+        </p>
         {auto && (
           <p className="mt-0.5 flex items-center gap-1 text-[11px] text-accent-strong">
             <Sparkles className="size-3" /> Saldo en USD × TRM, menos lo ya pagado
           </p>
         )}
         {detalle && <div className="mt-0.5 text-[12px] leading-snug text-muted">{detalle}</div>}
-        {pago && (pago.real > 0) && <div className="mt-1"><EstadoPago x={pago} /></div>}
+        {pago && (pago.real > 0 || (pago.plan > 0 && puedeEditar && categoria)) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            {flexible ? (
+              // Flexible: se va registrando lo que se gasta (puede quedar por debajo o pasarse)
+              <>
+                {pago.real > 0 && <EstadoPago x={pago} flexible />}
+                {botonAgregar}
+              </>
+            ) : listo ? (
+              // Fijo ya pagado: ver el pago y, si hubo un gasto más, agregarlo
+              <>
+                <button type="button" onClick={() => pago.movs.at(-1) && abrirRegistro(pago.movs.at(-1))}
+                  aria-label={`${ingreso ? 'Ver lo recibido' : 'Ver el pago'} de ${rubro.nombre}`} className="foco rounded-full">
+                  <EstadoPago x={pago} tipo={tipo} />
+                </button>
+                {botonAgregar}
+              </>
+            ) : (
+              // Fijo sin pagar: un toque lo paga completo (o lo que falta)
+              <>
+                {pago.real > 0 && <EstadoPago x={pago} tipo={tipo} />}
+                {puedeEditar && categoria && pago.pendiente > 0 && (
+                  <button type="button" onClick={marcar} disabled={marcando}
+                    aria-label={pago.real > 0 ? `${ingreso ? 'Recibir' : 'Pagar'} lo que falta de ${rubro.nombre}: ${cop(pago.pendiente)}` : `Marcar ${rubro.nombre} como ${ingreso ? 'recibido' : 'pagado'}`}
+                    className={boton}>
+                    <Circle className="size-4 text-muted" />
+                    {marcando ? 'Un momento…' : pago.real > 0 ? (ingreso ? 'Recibir resto' : 'Pagar resto') : (ingreso ? 'Recibido' : 'Pagado')}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
       <ValorMes rubro={rubro} periodoId={periodoId} onCambio={onCambio} />
       <BotonMas etiqueta={`Opciones de ${rubro.nombre}`} onClick={onMas} />
@@ -569,6 +741,11 @@ function EnlacePlan({ texto }: { texto: string }) {
 }
 
 type Frecuencia = 'todos' | 'algunos';
+const OPCIONES_CONTROL: { valor: ControlRubro; etiqueta: string }[] = [
+  { valor: 'fijo', etiqueta: 'Fijo' },
+  { valor: 'flexible', etiqueta: 'Flexible' },
+];
+
 const OPCIONES_FRECUENCIA: { valor: Frecuencia; etiqueta: string }[] = [
   { valor: 'todos', etiqueta: 'Todos los meses' },
   { valor: 'algunos', etiqueta: 'Solo algunos meses' },
@@ -582,6 +759,7 @@ function HojaRubro({ rubro, onCerrar }: { rubro: Rubro | null; onCerrar: () => v
   const [meses, setMeses] = useState<string[]>([]);
   const [valorMeses, setValorMeses] = useState(0);
   const [tocado, setTocado] = useState(false);
+  const [control, setControl] = useState<ControlRubro>('fijo');
   useEffect(() => {
     if (!rubro) return;
     const conValor = mesesConValor(estado, rubro);
@@ -591,6 +769,7 @@ function HojaRubro({ rubro, onCerrar }: { rubro: Rubro | null; onCerrar: () => v
     setMeses(conValor.length ? conValor.map(p => p.id) : [periodoId]);
     setValorMeses(valorCelda(estado, rubro, periodoId) || (conValor[0] ? valorCelda(estado, rubro, conValor[0].id) : 0));
     setTocado(false);
+    setControl(esFlexible(estado, rubro) ? 'flexible' : 'fijo');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rubro]);
   if (!rubro) return <Hoja abierta={false} onCerrar={onCerrar} titulo="">{null}</Hoja>;
@@ -623,6 +802,7 @@ function HojaRubro({ rubro, onCerrar }: { rubro: Rubro | null; onCerrar: () => v
               const usd = usdTxt.trim() === '' ? null : Number(usdTxt.replace(',', '.')) || 0;
               if (usd !== rubro.saldo_usd) cambios.saldo_usd = usd;
             }
+            if (seccion === 'operativo' && control !== (esFlexible(estado, rubro) ? 'flexible' : 'fijo')) cambios.control = control;
             if (conFrecuencia) {
               const recurrente = frecuencia === 'todos';
               if (recurrente !== rubro.recurrente) cambios.recurrente = recurrente;
@@ -645,6 +825,14 @@ function HojaRubro({ rubro, onCerrar }: { rubro: Rubro | null; onCerrar: () => v
         <Campo etiqueta="Nombre del rubro" htmlFor="rb-nombre">
           <Entrada id="rb-nombre" value={nombre} onChange={e => setNombre(e.target.value)} maxLength={120} />
         </Campo>
+
+        {seccion === 'operativo' && (
+          <Campo etiqueta="¿Cómo se paga?" ayuda={control === 'fijo'
+            ? 'Fijo: se paga completo cada mes (arriendo, internet). Se marca con el botón «Pagado».'
+            : 'Flexible: se gasta de a poco y puede quedar por debajo o pasarse (mercado, salidas, clases que solo pagas si vas). Se van agregando los egresos.'}>
+            <Segmentado etiqueta="Fijo o flexible" valor={control} onChange={setControl} opciones={OPCIONES_CONTROL} />
+          </Campo>
+        )}
 
         {conFrecuencia && (
           <Campo etiqueta="¿Cada cuánto?" ayuda={frecuencia === 'todos'
@@ -705,9 +893,13 @@ function HojaNuevoRubro({ categoria, onCerrar }: { categoria: Categoria | null; 
   const [valor, setValor] = useState(0);
   const [desde, setDesde] = useState('');
   const [meses, setMeses] = useState<string[]>([]);
+  // Fijo o flexible: por defecto, como la lista (Flexible → flexible; Fijo o Semi-fijo → fijo)
+  const porDefecto: ControlRubro = categoria?.control === 'Flexible' ? 'flexible' : 'fijo';
+  const [control, setControl] = useState<ControlRubro>('fijo');
   useEffect(() => {
     if (!categoria) return;
     setNombre('');
+    setControl(categoria.control === 'Flexible' ? 'flexible' : 'fijo');
     setFrecuencia('todos');
     setValor(0);
     setDesde(periodoId);
@@ -738,6 +930,8 @@ function HojaNuevoRubro({ categoria, onCerrar }: { categoria: Categoria | null; 
             nombre: nombre.trim(),
             recurrente: frecuencia === 'todos',
             valores: Object.fromEntries(destino.map(p => [p.id, valor])),
+            // Solo se guarda si es distinto al de la lista: así sigue a la lista si esta cambia
+            ...(categoria.seccion === 'operativo' && control !== porDefecto ? { control } : {}),
           });
           avisar(frecuencia === 'todos' ? 'Rubro agregado' : `Rubro agregado en ${destino.length} ${destino.length === 1 ? 'mes' : 'meses'}`);
           onCerrar();
@@ -747,6 +941,13 @@ function HojaNuevoRubro({ categoria, onCerrar }: { categoria: Categoria | null; 
           <Entrada id="nr-nombre" autoFocus value={nombre} onChange={e => setNombre(e.target.value)}
             placeholder={esIngreso ? 'Ej: Prima de junio' : 'Ej: Netflix'} maxLength={120} />
         </Campo>
+        {categoria?.seccion === 'operativo' && (
+          <Campo etiqueta="¿Cómo se paga?" ayuda={control === 'fijo'
+            ? 'Fijo: se paga completo cada mes (arriendo, internet). Se marca con el botón «Pagado».'
+            : 'Flexible: se gasta de a poco y puede quedar por debajo o pasarse (mercado, salidas, clases que solo pagas si vas). Se van agregando los egresos.'}>
+            <Segmentado etiqueta="Fijo o flexible" valor={control} onChange={setControl} opciones={OPCIONES_CONTROL} />
+          </Campo>
+        )}
         <Campo etiqueta="¿Cada cuánto?">
           <Segmentado etiqueta="Frecuencia" valor={frecuencia} onChange={setFrecuencia} opciones={OPCIONES_FRECUENCIA} />
         </Campo>

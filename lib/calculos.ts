@@ -438,6 +438,37 @@ export function planVsReal(e: Estado, periodoId: string, fila?: ResumenPeriodo) 
   };
 }
 
+/** Si un gasto es flexible (se gasta de a poco) o fijo (se paga completo). Por defecto, como su categoría. */
+export function esFlexible(e: Estado, r: Rubro): boolean {
+  if (r.control) return r.control === 'flexible';
+  return e.categorias.find(c => c.id === r.categoria_id)?.control === 'Flexible';
+}
+
+/** Ingresos del mes por ítem del presupuesto: lo planeado frente a lo recibido con ese ítem. */
+export function recibidoPorRubro(e: Estado, periodoId: string): Map<number, ItemPlanReal> {
+  const catPorNombre = new Map(e.categorias.map(c => [c.nombre, c]));
+  const porRubro = new Map<number, Movimiento[]>();
+  for (const m of movimientosDe(e, periodoId)) {
+    if (m.tipo !== 'ingreso') continue;
+    let r = m.rubro_id != null ? e.rubros.find(x => x.id === m.rubro_id) : undefined;
+    if (!r) {
+      const cat = catPorNombre.get(m.categoria);
+      const desc = normalizar(m.descripcion ?? '');
+      r = cat && desc ? e.rubros.find(x => x.categoria_id === cat.id && normalizar(x.nombre) === desc) : undefined;
+    }
+    if (r) porRubro.set(r.id, [...(porRubro.get(r.id) ?? []), m]);
+  }
+  const res = new Map<number, ItemPlanReal>();
+  for (const r of e.rubros) {
+    if (seccionDe(e, r) !== 'ingreso') continue;
+    const plan = valorCelda(e, r, periodoId);
+    const movs = porRubro.get(r.id) ?? [];
+    const real = movs.reduce((t, m) => t + m.valor, 0);
+    res.set(r.id, { rubro: r, plan, real, pendiente: Math.max(0, plan - real), exceso: Math.max(0, real - plan), movs });
+  }
+  return res;
+}
+
 /** Lo real del mes por nombre de categoría: gastos (por defecto) o ingresos. */
 export function realPorCategoria(e: Estado, periodoId: string, tipo: 'egreso' | 'ingreso' = 'egreso'): Map<string, number> {
   const m = new Map<string, number>();

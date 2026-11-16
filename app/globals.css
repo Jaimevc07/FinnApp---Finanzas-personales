@@ -223,6 +223,11 @@ dialog.hoja[open] {
   dialog.hoja[open] {
     animation: aparecer 180ms ease-out;
   }
+  /* Hoja ancha (registrar movimiento): dos columnas en escritorio */
+  dialog.hoja.hoja-ancha {
+    width: calc(100% - 48px);
+    max-width: 960px;
+  }
 }
 @keyframes subir {
   from { transform: translateY(100%); }

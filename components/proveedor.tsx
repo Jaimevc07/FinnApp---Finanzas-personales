@@ -14,6 +14,7 @@ import { ProveedorSoloLectura } from './ui/solo-lectura';
 export type DatosMeta = Omit<Meta, 'id' | 'rubro_id' | 'orden' | 'pausada_desde' | 'aporte_pausado'> & { id?: number; aportes?: Record<string, number> | null };
 
 type Conexion = 'ok' | 'guardando' | 'sin-conexion';
+export type AccionAviso = { etiqueta: string; fn: () => void };
 /** movimiento con id = editar; sin id = borrador precargado (p. ej. el total de una lista de compras). */
 type Registro = { abierto: boolean; movimiento: Partial<Movimiento> | null; tipo: TipoMovimiento };
 
@@ -21,7 +22,9 @@ type Ctx = {
   estado: Estado | null;
   conexion: Conexion;
   aviso: string | null;
-  avisar: (msg: string) => void;
+  avisoAccion: AccionAviso | null;
+  /** Aviso abajo de la pantalla; con acción (p. ej. "Deshacer") dura un poco más. */
+  avisar: (msg: string, accion?: AccionAviso) => void;
   periodoId: string;
   setPeriodoId: (id: string) => void;
   filas: ResumenPeriodo[];
@@ -47,7 +50,10 @@ type Ctx = {
   agregarPeriodo: (posicion?: 'anterior' | 'siguiente') => Promise<void>;
   quitarPeriodo: (cual: 'primero' | 'ultimo') => Promise<void>;
   copiarMes: (desde: string, hacia: string, secciones: Seccion[]) => Promise<void>;
+  vaciarMes: (periodo: string, secciones: Seccion[]) => Promise<void>;
   guardarMovimiento: (m: Omit<Movimiento, 'id'> & { id?: number }) => Promise<void>;
+  /** Registra un movimiento nuevo y devuelve su id (para poder deshacerlo). */
+  registrarMovimiento: (m: Omit<Movimiento, 'id'>) => Promise<number | null>;
   borrarMovimiento: (id: number) => Promise<void>;
   guardarLista: (l: Partial<Omit<Lista, 'orden'>>) => Promise<void>;
   borrarLista: (id: number) => Promise<void>;
@@ -121,6 +127,7 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
   const avisoRef = useRef<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [avisoAccion, setAvisoAccion] = useState<AccionAviso | null>(null);
   const [periodoId, setPeriodoCrudo] = useState('');
   const [registro, setRegistro] = useState<Registro>({ abierto: false, movimiento: null, tipo: 'egreso' });
   const temporizadores = useRef(new Map<string, { t: ReturnType<typeof setTimeout>; fn: () => Promise<unknown> }>());
@@ -131,11 +138,12 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
   const lector = useRef(true);
   lector.current = !!estado && permiso === 'lector';
 
-  const avisar = useCallback((msg: string) => {
+  const avisar = useCallback((msg: string, accion?: AccionAviso) => {
     avisoRef.current = msg;
     setAviso(msg);
+    setAvisoAccion(accion ?? null);
     clearTimeout(tAviso.current);
-    tAviso.current = setTimeout(() => { avisoRef.current = null; setAviso(null); }, 3200);
+    tAviso.current = setTimeout(() => { avisoRef.current = null; setAviso(null); setAvisoAccion(null); }, accion ? 6000 : 3200);
   }, []);
 
   const setEstado = useCallback((e: Estado | ((prev: Estado) => Estado)) => {
@@ -277,11 +285,17 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     return true;
   }, [avisar]);
 
-  const mutar = useCallback(async (metodo: string, url: string, body?: unknown, deCualquiera = false) => {
+  /** Cambia algo en el servidor y deja el estado que devuelve (también lo devuelve). */
+  const mutarConEstado = useCallback(async (metodo: string, url: string, body?: unknown, deCualquiera = false) => {
     if (!deCualquiera && bloqueado()) throw new Error('Solo lectura');
     await vaciar();
-    setEstado(await pedir<Estado>(metodo, url, body));
+    const nuevo = await pedir<Estado>(metodo, url, body);
+    setEstado(nuevo);
+    return nuevo;
   }, [bloqueado, pedir, setEstado, vaciar]);
+  const mutar = useCallback(async (metodo: string, url: string, body?: unknown, deCualquiera = false) => {
+    await mutarConEstado(metodo, url, body, deCualquiera);
+  }, [mutarConEstado]);
 
   const setConfig = useCallback((parcial: Partial<Config>) => {
     if (bloqueado()) return;
@@ -303,7 +317,7 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     else diferir(`celda:${rubroId}:${pid}`, () => pedir('PUT', 'celdas', body));
   }, [bloqueado, diferir, pedir, setEstado]);
 
-  const valor = useMemo<Omit<Ctx, 'estado' | 'conexion' | 'aviso' | 'periodoId' | 'filas' | 'fila' | 'registro' | 'puedeEditar' | 'esPropietario' | 'refrescar' | 'refrescando'>>(() => ({
+  const valor = useMemo<Omit<Ctx, 'estado' | 'conexion' | 'aviso' | 'avisoAccion' | 'periodoId' | 'filas' | 'fila' | 'registro' | 'puedeEditar' | 'esPropietario' | 'refrescar' | 'refrescando'>>(() => ({
     avisar,
     setPeriodoId,
     setConfig,
@@ -320,7 +334,14 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     agregarPeriodo: (posicion = 'siguiente') => mutar('POST', 'periodos', { posicion }),
     quitarPeriodo: cual => mutar('DELETE', `periodos?cual=${cual}`),
     copiarMes: (desde, hacia, secciones) => mutar('POST', 'periodos/copiar', { desde, hacia, secciones }),
+    vaciarMes: (periodo, secciones) => mutar('POST', 'periodos/vaciar', { periodo, secciones }),
     guardarMovimiento: ({ id, ...m }) => (id ? mutar('PATCH', `movimientos/${id}`, m) : mutar('POST', 'movimientos', m)),
+    registrarMovimiento: async m => {
+      const e = await mutarConEstado('POST', 'movimientos', m);
+      const nuevo = e.movimientos.filter(x => x.fecha === m.fecha && x.valor === m.valor && x.descripcion === m.descripcion && (x.rubro_id ?? null) === (m.rubro_id ?? null))
+        .reduce<number | null>((max, x) => (max === null || x.id > max ? x.id : max), null);
+      return nuevo;
+    },
     borrarMovimiento: id => mutar('DELETE', `movimientos/${id}`),
     guardarLista: ({ id, ...l }) => (id ? mutar('PATCH', `listas/${id}`, l) : mutar('POST', 'listas', l)),
     borrarLista: id => mutar('DELETE', `listas/${id}`),
@@ -359,7 +380,7 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     },
     abrirRegistro: (m = null, tipo = 'egreso') => setRegistro({ abierto: true, movimiento: m, tipo: m?.tipo ?? tipo }),
     cerrarRegistro: () => setRegistro(r => ({ ...r, abierto: false })),
-  }), [avisar, mutar, pedir, setCelda, setConfig, setPeriodoId, vaciar]);
+  }), [avisar, mutar, mutarConEstado, pedir, setCelda, setConfig, setPeriodoId, vaciar]);
 
   const filas = useMemo(() => (estado ? serie(estado) : []), [estado]);
   const fila = filas.find(f => f.periodo.id === periodoId);
@@ -368,7 +389,7 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
 
   return (
     <Contexto.Provider value={{
-      ...valor, estado, conexion, aviso, periodoId, filas, fila, registro, puedeEditar, esPropietario: permiso === 'propietario',
+      ...valor, estado, conexion, aviso, avisoAccion, periodoId, filas, fila, registro, puedeEditar, esPropietario: permiso === 'propietario',
       refrescar, refrescando,
     }}>
       <ProveedorSoloLectura value={!!estado && !puedeEditar}>{children}</ProveedorSoloLectura>

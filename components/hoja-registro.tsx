@@ -213,18 +213,19 @@ export function HojaRegistro() {
 
   return (
     <Hoja
+      ancha
       abierta={registro.abierto}
       onCerrar={cerrarRegistro}
       titulo={edicion ? 'Editar movimiento' : 'Registrar movimiento'}
       subtitulo="Lo que realmente entró o salió. Se compara con el presupuesto del mes."
       pie={
-        <div className="flex gap-2">
+        <div className="flex gap-2 lg:justify-end">
           {edicion && (
             <BotonSecundario onClick={eliminar} aria-label="Eliminar movimiento" className="px-4 text-neg-text">
               <Trash2 />
             </BotonSecundario>
           )}
-          <BotonAcento type="submit" form="form-registro" className="min-w-0 flex-1" disabled={enviando}>
+          <BotonAcento type="submit" form="form-registro" className="min-w-0 flex-1 lg:min-w-[280px] lg:flex-none" disabled={enviando}>
             {enviando ? 'Guardando…' : edicion ? 'Guardar cambios'
               : varios ? `Registrar ${elegidos.length} ${tipo === 'ingreso' ? 'ingresos' : 'pagos'}`
               : tipo === 'ingreso' ? 'Registrar ingreso' : 'Registrar egreso'}
@@ -232,197 +233,216 @@ export function HojaRegistro() {
         </div>
       }
     >
-      <form id="form-registro" onSubmit={guardar} className="flex min-w-0 flex-col gap-4">
-        <Segmentado
-          etiqueta="Tipo de movimiento"
-          valor={tipo}
-          onChange={t => { if (t !== tipo) soltarItems(); setTipo(t); }}
-          opciones={[{ valor: 'egreso', etiqueta: '− Egreso', tono: 'neg' }, { valor: 'ingreso', etiqueta: '+ Ingreso', tono: 'pos' }]}
-        />
-        <Campo etiqueta="Valor" htmlFor="r-valor">
-          <EntradaDinero id="r-valor" grande valor={valor} onValor={cambiarValor} placeholder="0" autoFocus={!borrador} readOnly={varios} />
-          {varios && <p className="mt-1 text-[12px] text-muted">Es la suma de los {elegidos.length} ítems. Cambia el monto de cada uno abajo.</p>}
-        </Campo>
-
-        <Campo etiqueta="Descripción" htmlFor="r-desc">
-          <Entrada id="r-desc" value={descripcion} onChange={e => { setDescripcion(e.target.value); if (auto && !varios) setAuto(false); }}
-            readOnly={varios} placeholder={tipo === 'ingreso' ? 'Ej: sueldo María' : 'Ej: tanqueada'} maxLength={160} />
-          {varios && <p className="mt-1 text-[12px] text-muted">Cada ítem se guarda como un movimiento con su nombre.</p>}
-        </Campo>
-
-        <div className="min-w-0">
-          <p id="r-cat" className="mb-1.5 text-[12px] font-semibold text-muted">Categoría</p>
-          <div role="radiogroup" aria-labelledby="r-cat" className="flex flex-wrap gap-1.5">
-            {categorias.map(c => {
-              const elegida = c === cat;
-              const Icono = iconoDe(c, estado?.categorias);
-              return (
-                <button key={c} type="button" role="radio" aria-checked={elegida} onClick={() => { if (c !== cat) soltarItems(); setCategoria(c); }}
-                  className={cx('foco inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition active:scale-[0.97]',
-                    elegida ? 'bg-accent-soft text-ink ring-2 ring-accent' : 'bg-surface-2 text-ink-2 hover:bg-surface-3')}>
-                  <Icono className={cx('size-4 shrink-0', elegida ? 'text-accent-strong' : 'text-muted')} aria-hidden />
-                  <span className="min-w-0 truncate">{c}</span>
-                  {elegida && <Check className="size-3.5 shrink-0 text-accent-strong" strokeWidth={3} aria-hidden />}
-                </button>
-              );
-            })}
+      {/* En el celular va todo en una columna (el orden lo dan las clases order-*). En escritorio, dos columnas
+          con su propio scroll: a la izquierda el movimiento, a la derecha la categoría y sus ítems. */}
+      <form id="form-registro" onSubmit={guardar} className="flex min-w-0 flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-0">
+        <div className="contents lg:flex lg:min-h-0 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:overscroll-contain lg:py-1 lg:pr-6 lg:pb-5 lg:pl-1">
+          <div className="min-w-0 empty:hidden order-1 lg:order-none">
+          <Segmentado
+            etiqueta="Tipo de movimiento"
+            valor={tipo}
+            onChange={t => { if (t !== tipo) soltarItems(); setTipo(t); }}
+            opciones={[{ valor: 'egreso', etiqueta: '− Egreso', tono: 'neg' }, { valor: 'ingreso', etiqueta: '+ Ingreso', tono: 'pos' }]}
+          />
+          </div>
+          <div className="min-w-0 empty:hidden order-2 lg:order-none">
+          <Campo etiqueta="Valor" htmlFor="r-valor">
+            <EntradaDinero id="r-valor" grande valor={valor} onValor={cambiarValor} placeholder="0" autoFocus={!borrador} readOnly={varios} />
+            {varios && <p className="mt-1 text-[12px] text-muted">Es la suma de los {elegidos.length} ítems. Cambia el monto de cada uno abajo.</p>}
+          </Campo>
+          </div>
+          <div className="min-w-0 empty:hidden order-3 lg:order-none">
+          <Campo etiqueta="Descripción" htmlFor="r-desc">
+            <Entrada id="r-desc" value={descripcion} onChange={e => { setDescripcion(e.target.value); if (auto && !varios) setAuto(false); }}
+              readOnly={varios} placeholder={tipo === 'ingreso' ? 'Ej: sueldo María' : 'Ej: tanqueada'} maxLength={160} />
+            {varios && <p className="mt-1 text-[12px] text-muted">Cada ítem se guarda como un movimiento con su nombre.</p>}
+          </Campo>
+          </div>
+          <div className="min-w-0 empty:hidden order-7 lg:order-none">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+            <Campo etiqueta="Fecha" htmlFor="r-fecha">
+              <Entrada id="r-fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} required />
+            </Campo>
+            <Campo etiqueta={tipo === 'ingreso' ? 'Llegó por' : 'Medio de pago'} htmlFor="r-medio">
+              <Selector id="r-medio" value={medio} onChange={e => setMedio(e.target.value)}>
+                {MEDIOS_PAGO.map(x => <option key={x}>{x}</option>)}
+              </Selector>
+            </Campo>
+          </div>
+          </div>
+          <div className="min-w-0 empty:hidden order-8 lg:order-none">
+          {fueraDelPlan && <AvisoMesFueraCompacto mesId={mesMov} />}
+          </div>
+          <div className="min-w-0 empty:hidden order-9 lg:order-none">
+          {conTarjeta && (tarjetas.length ? (
+            <div className="flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-3">
+              <div className="min-w-0">
+                <p id="r-tarjeta" className="mb-1.5 text-[12px] font-semibold text-muted">¿De cuál tarjeta?</p>
+                <div role="radiogroup" aria-labelledby="r-tarjeta" className="flex flex-col gap-1.5">
+                  {[...tarjetas.map(t => ({ id: t.id, nombre: t.nombre, icono: iconoRubro(t, estado?.categorias.find(c => c.id === t.categoria_id)) })),
+                    { id: 0, nombre: 'Otra tarjeta', icono: CreditCard }].map(op => {
+                    const elegida = op.id === 0 ? !tarjeta : tarjeta?.id === op.id;
+                    const disp = op.id && estado ? cuposTarjetas(estado, mesMov).find(c => c.rubro.id === op.id) : undefined;
+                    return (
+                      <button key={op.id} type="button" role="radio" aria-checked={elegida} onClick={() => setTarjetaId(op.id)}
+                        className={cx('foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left transition',
+                          elegida ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface hover:bg-surface-3')}>
+                        <span className={cx('grid size-8 shrink-0 place-items-center rounded-lg', elegida ? 'bg-surface text-accent-strong' : 'bg-surface-2 text-ink-2')}>
+                          <op.icono className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-semibold">{op.nombre}</span>
+                          {op.id !== 0 && (
+                            <span className={cx('block truncate text-[11px]', disp && disp.disponible < 0 ? 'font-semibold text-neg-text' : 'text-muted')}>
+                              {disp ? `Disponible ${cop(disp.disponible + (edicion && edicion.tarjeta_id === op.id && (edicion.fecha ?? '').slice(0, 7) <= mesMov ? edicion.valor ?? 0 : 0))} de ${cop(disp.cupo)}` : 'Sin cupo registrado'}
+                            </span>
+                          )}
+                        </span>
+                        <span className={cx('grid size-5 shrink-0 place-items-center rounded-full border-2', elegida ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line')}>
+                          {elegida && <Check className="size-3" strokeWidth={3} />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {tarjeta && !cupo && (
+                <p className="text-[12px] text-muted">Para ver cuánto cupo les queda, agréguenlo en Deudas y metas (⋯ en la deuda).</p>
+              )}
+              {cupo && (
+                <div className="text-[12px]">
+                  <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <span className="text-ink-2">Cupo disponible</span>
+                    <b className="font-semibold tabular-nums">{cop(disponibleAntes)} de {cop(cupo.cupo)}</b>
+                  </p>
+                  <Medidor className="mt-2 bg-surface!" valor={cupo.cupo ? (cupo.cupo - disponibleDespues) / cupo.cupo : 0}
+                    tono={disponibleDespues < 0 ? 'neg' : 'ink'} etiqueta="Cupo usado de la tarjeta" />
+                  <p className={cx('mt-1.5 font-semibold', disponibleDespues < 0 ? 'text-neg-text' : disponibleDespues < cupo.cupo * 0.1 ? 'text-warn-text' : 'text-ink')}>
+                    {disponibleDespues < 0
+                      ? `Esta compra supera el cupo por ${cop(-disponibleDespues)}`
+                      : `Después de esta compra quedan ${cop(disponibleDespues)}`}
+                  </p>
+                </div>
+              )}
+              {tarjeta && (
+                <p className="flex items-start gap-2 border-t border-line pt-3 text-[12px] text-ink-2">
+                  <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted" />
+                  {pago ? (
+                    <span>
+                      Entra al extracto del <b className="font-semibold">{fechaCorta(pago.corte)}</b> y la pagas hasta el <b className="font-semibold">{fechaCorta(pago.pago)}</b>:
+                      sale del presupuesto de <b className="font-semibold">{etiquetaMes(pago.mesPago)}</b> <span className="whitespace-nowrap">(sueldo del {pago.sueldo})</span>.
+                    </span>
+                  ) : (
+                    <span className="text-muted">Para saber en qué mes la pagas, agrega el día de corte y de pago de la tarjeta en Deudas y metas (⋯ en la deuda).</span>
+                  )}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-2xl bg-surface-2 p-3 text-[12px] text-muted">
+              Aún no tienen tarjetas registradas. Agréguenlas en Deudas y metas (con su cupo) para elegirlas aquí.
+            </p>
+          ))}
+          </div>
+          <div className="min-w-0 empty:hidden order-6 lg:order-none">
+          {/* Cómo queda el ítem (o la categoría) con este movimiento */}
+          {item && item.plan > 0 ? (
+            <ResumenItem tipo={tipo} valor={valor} categoria={cat} nombre={item.r.nombre} plan={item.plan} antes={item.antes} mes={etiquetaMes(mesMov)} />
+          ) : tipo === 'egreso' && planCat > 0 && (
+            <div className={cx('rounded-2xl p-3 text-[12px]', conEste > planCat ? 'bg-neg-soft' : conEste >= planCat * 0.85 ? 'bg-warn-soft' : 'bg-surface-2')}>
+              <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+                <span className="text-ink-2">Con este gasto, en {cat} llevas</span>
+                <b className={cx('font-semibold tabular-nums', conEste > planCat ? 'text-neg-text' : 'text-ink')}>{cop(conEste)} de {cop(planCat)}</b>
+              </p>
+              <Medidor className="mt-2 bg-surface!" valor={planCat ? conEste / planCat : 0} tono={conEste > planCat ? 'neg' : 'ink'} etiqueta={`Gastado en ${cat}`} />
+              {conEste > planCat && <p className="mt-1.5 font-semibold text-neg-text">Te pasas {cop(conEste - planCat)} del presupuesto de la categoría</p>}
+            </div>
+          )}
+          </div>
+          <div className="min-w-0 empty:hidden order-10 lg:order-none">
+          {edicion && (quienFue(estado, edicion.creado_por) || quienFue(estado, edicion.editado_por)) && (
+            <p className="flex items-start gap-2 text-[12px] text-muted">
+              <UserRound className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                {quienFue(estado, edicion.creado_por) && <>Registrado por <b className="font-semibold text-ink-2">{quienFue(estado, edicion.creado_por)}</b> {cuando(edicion.creado)}</>}
+                {quienFue(estado, edicion.creado_por) && quienFue(estado, edicion.editado_por) && ' · '}
+                {quienFue(estado, edicion.editado_por) && <>editado por <b className="font-semibold text-ink-2">{quienFue(estado, edicion.editado_por)}</b> {cuando(edicion.editado)}</>}
+              </span>
+            </p>
+          )}
           </div>
         </div>
-
-        {/* Ítem del presupuesto: Combustible, Mercado, Sueldo Jaime… */}
-        {items.length > 0 && (
+        <div className="contents lg:flex lg:min-h-0 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:overscroll-contain lg:border-l lg:border-line lg:py-1 lg:pr-1 lg:pb-5 lg:pl-6">
+          <div className="min-w-0 empty:hidden order-4 lg:order-none">
           <div className="min-w-0">
-            <p id="r-item" className="mb-1.5 text-[12px] font-semibold text-muted">
-              {multiple
-                ? <>¿Qué {tipo === 'ingreso' ? 'recibes' : 'pagas'} de {cat}? <span className="font-normal">(puedes elegir varios)</span></>
-                : <>¿Qué ítem de {cat}? <span className="font-normal">(opcional)</span></>}
-            </p>
-            {multiple && !elegidos.length && (
-              <p className="-mt-0.5 mb-2 text-[12px] text-muted">Al elegirlos se llena el valor con lo que falta de cada uno.</p>
-            )}
-            <div role={multiple ? 'group' : 'radiogroup'} aria-labelledby="r-item" className="flex flex-col gap-1.5">
-              {items.map(x => {
-                const elegido = seleccion.includes(x.r.id);
-                const queda = x.plan - x.antes;
+            <p id="r-cat" className="mb-1.5 text-[12px] font-semibold text-muted">Categoría</p>
+            <div role="radiogroup" aria-labelledby="r-cat" className="flex flex-wrap gap-1.5">
+              {categorias.map(c => {
+                const elegida = c === cat;
+                const Icono = iconoDe(c, estado?.categorias);
                 return (
-                  <div key={x.r.id} className={cx('min-w-0 rounded-xl transition', elegido ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-2 hover:bg-surface-3')}>
-                    <button type="button" role={multiple ? 'checkbox' : 'radio'} aria-checked={elegido} onClick={() => elegirItem(x)}
-                      className="foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left">
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-semibold">{x.r.nombre}</span>
-                        <span className="block truncate text-[11px] text-muted">
-                          {!x.plan
-                            ? `Sin presupuesto en ${etiquetaMes(mesMov)}`
-                            : tipo === 'ingreso'
-                              ? `Esperado ${cop(x.plan)}${x.antes ? ` · recibido ${cop(x.antes)}` : ''}`
-                              : `Presupuesto ${cop(x.plan)} · ${queda > 0 ? `quedan ${cop(queda)}` : queda === 0 ? (x.antes ? 'ya está pago' : 'quedan $ 0') : `pasado ${cop(-queda)}`}`}
-                        </span>
-                      </span>
-                      <span className={cx('grid size-5 shrink-0 place-items-center border-2', multiple ? 'rounded-md' : 'rounded-full',
-                        elegido ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line bg-surface')}>
-                        {elegido && <Check className="size-3" strokeWidth={3} />}
-                      </span>
-                    </button>
-                    {varios && elegido && (
-                      <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
-                        <label htmlFor={`r-monto-${x.r.id}`} className="text-[12px] font-semibold text-ink-2">{tipo === 'ingreso' ? 'Recibes' : 'Pagas'}</label>
-                        <EntradaDinero id={`r-monto-${x.r.id}`} valor={montos[x.r.id] ?? 0} placeholder="0" className="w-40 [&_input]:h-10 [&_input]:bg-surface"
-                          onValor={v => aplicarAuto(seleccion, { ...montos, [x.r.id]: v })} />
-                      </div>
-                    )}
-                  </div>
+                  <button key={c} type="button" role="radio" aria-checked={elegida} onClick={() => { if (c !== cat) soltarItems(); setCategoria(c); }}
+                    className={cx('foco inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition active:scale-[0.97]',
+                      elegida ? 'bg-accent-soft text-ink ring-2 ring-accent' : 'bg-surface-2 text-ink-2 hover:bg-surface-3')}>
+                    <Icono className={cx('size-4 shrink-0', elegida ? 'text-accent-strong' : 'text-muted')} aria-hidden />
+                    <span className="min-w-0 truncate">{c}</span>
+                    {elegida && <Check className="size-3.5 shrink-0 text-accent-strong" strokeWidth={3} aria-hidden />}
+                  </button>
                 );
               })}
             </div>
           </div>
-        )}
-
-        {/* Cómo queda el ítem (o la categoría) con este movimiento */}
-        {item && item.plan > 0 ? (
-          <ResumenItem tipo={tipo} valor={valor} categoria={cat} nombre={item.r.nombre} plan={item.plan} antes={item.antes} mes={etiquetaMes(mesMov)} />
-        ) : tipo === 'egreso' && planCat > 0 && (
-          <div className={cx('rounded-2xl p-3 text-[12px]', conEste > planCat ? 'bg-neg-soft' : conEste >= planCat * 0.85 ? 'bg-warn-soft' : 'bg-surface-2')}>
-            <p className="flex flex-wrap items-baseline justify-between gap-x-2">
-              <span className="text-ink-2">Con este gasto, en {cat} llevas</span>
-              <b className={cx('font-semibold tabular-nums', conEste > planCat ? 'text-neg-text' : 'text-ink')}>{cop(conEste)} de {cop(planCat)}</b>
-            </p>
-            <Medidor className="mt-2 bg-surface!" valor={planCat ? conEste / planCat : 0} tono={conEste > planCat ? 'neg' : 'ink'} etiqueta={`Gastado en ${cat}`} />
-            {conEste > planCat && <p className="mt-1.5 font-semibold text-neg-text">Te pasas {cop(conEste - planCat)} del presupuesto de la categoría</p>}
           </div>
-        )}
-
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
-          <Campo etiqueta="Fecha" htmlFor="r-fecha">
-            <Entrada id="r-fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} required />
-          </Campo>
-          <Campo etiqueta={tipo === 'ingreso' ? 'Llegó por' : 'Medio de pago'} htmlFor="r-medio">
-            <Selector id="r-medio" value={medio} onChange={e => setMedio(e.target.value)}>
-              {MEDIOS_PAGO.map(x => <option key={x}>{x}</option>)}
-            </Selector>
-          </Campo>
-        </div>
-        {fueraDelPlan && <AvisoMesFueraCompacto mesId={mesMov} />}
-
-        {conTarjeta && (tarjetas.length ? (
-          <div className="flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-3">
+          <div className="min-w-0 empty:hidden order-5 lg:order-none">
+          {/* Ítem del presupuesto: Combustible, Mercado, Sueldo Jaime… */}
+          {items.length > 0 && (
             <div className="min-w-0">
-              <p id="r-tarjeta" className="mb-1.5 text-[12px] font-semibold text-muted">¿De cuál tarjeta?</p>
-              <div role="radiogroup" aria-labelledby="r-tarjeta" className="flex flex-col gap-1.5">
-                {[...tarjetas.map(t => ({ id: t.id, nombre: t.nombre, icono: iconoRubro(t, estado?.categorias.find(c => c.id === t.categoria_id)) })),
-                  { id: 0, nombre: 'Otra tarjeta', icono: CreditCard }].map(op => {
-                  const elegida = op.id === 0 ? !tarjeta : tarjeta?.id === op.id;
-                  const disp = op.id && estado ? cuposTarjetas(estado, mesMov).find(c => c.rubro.id === op.id) : undefined;
+              <p id="r-item" className="mb-1.5 text-[12px] font-semibold text-muted">
+                {multiple
+                  ? <>¿Qué {tipo === 'ingreso' ? 'recibes' : 'pagas'} de {cat}? <span className="font-normal">(puedes elegir varios)</span></>
+                  : <>¿Qué ítem de {cat}? <span className="font-normal">(opcional)</span></>}
+              </p>
+              {multiple && !elegidos.length && (
+                <p className="-mt-0.5 mb-2 text-[12px] text-muted">Al elegirlos se llena el valor con lo que falta de cada uno.</p>
+              )}
+              <div role={multiple ? 'group' : 'radiogroup'} aria-labelledby="r-item" className="flex flex-col gap-1.5">
+                {items.map(x => {
+                  const elegido = seleccion.includes(x.r.id);
+                  const queda = x.plan - x.antes;
                   return (
-                    <button key={op.id} type="button" role="radio" aria-checked={elegida} onClick={() => setTarjetaId(op.id)}
-                      className={cx('foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left transition',
-                        elegida ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface hover:bg-surface-3')}>
-                      <span className={cx('grid size-8 shrink-0 place-items-center rounded-lg', elegida ? 'bg-surface text-accent-strong' : 'bg-surface-2 text-ink-2')}>
-                        <op.icono className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-semibold">{op.nombre}</span>
-                        {op.id !== 0 && (
-                          <span className={cx('block truncate text-[11px]', disp && disp.disponible < 0 ? 'font-semibold text-neg-text' : 'text-muted')}>
-                            {disp ? `Disponible ${cop(disp.disponible + (edicion && edicion.tarjeta_id === op.id && (edicion.fecha ?? '').slice(0, 7) <= mesMov ? edicion.valor ?? 0 : 0))} de ${cop(disp.cupo)}` : 'Sin cupo registrado'}
+                    <div key={x.r.id} className={cx('min-w-0 rounded-xl transition', elegido ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-2 hover:bg-surface-3')}>
+                      <button type="button" role={multiple ? 'checkbox' : 'radio'} aria-checked={elegido} onClick={() => elegirItem(x)}
+                        className="foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-semibold">{x.r.nombre}</span>
+                          <span className="block truncate text-[11px] text-muted">
+                            {!x.plan
+                              ? `Sin presupuesto en ${etiquetaMes(mesMov)}`
+                              : tipo === 'ingreso'
+                                ? `Esperado ${cop(x.plan)}${x.antes ? ` · recibido ${cop(x.antes)}` : ''}`
+                                : `Presupuesto ${cop(x.plan)} · ${queda > 0 ? `quedan ${cop(queda)}` : queda === 0 ? (x.antes ? 'ya está pago' : 'quedan $ 0') : `pasado ${cop(-queda)}`}`}
                           </span>
-                        )}
-                      </span>
-                      <span className={cx('grid size-5 shrink-0 place-items-center rounded-full border-2', elegida ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line')}>
-                        {elegida && <Check className="size-3" strokeWidth={3} />}
-                      </span>
-                    </button>
+                        </span>
+                        <span className={cx('grid size-5 shrink-0 place-items-center border-2', multiple ? 'rounded-md' : 'rounded-full',
+                          elegido ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line bg-surface')}>
+                          {elegido && <Check className="size-3" strokeWidth={3} />}
+                        </span>
+                      </button>
+                      {varios && elegido && (
+                        <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
+                          <label htmlFor={`r-monto-${x.r.id}`} className="text-[12px] font-semibold text-ink-2">{tipo === 'ingreso' ? 'Recibes' : 'Pagas'}</label>
+                          <EntradaDinero id={`r-monto-${x.r.id}`} valor={montos[x.r.id] ?? 0} placeholder="0" className="w-40 [&_input]:h-10 [&_input]:bg-surface"
+                            onValor={v => aplicarAuto(seleccion, { ...montos, [x.r.id]: v })} />
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
             </div>
-            {tarjeta && !cupo && (
-              <p className="text-[12px] text-muted">Para ver cuánto cupo les queda, agréguenlo en Deudas y metas (⋯ en la deuda).</p>
-            )}
-            {cupo && (
-              <div className="text-[12px]">
-                <p className="flex flex-wrap items-baseline justify-between gap-x-2">
-                  <span className="text-ink-2">Cupo disponible</span>
-                  <b className="font-semibold tabular-nums">{cop(disponibleAntes)} de {cop(cupo.cupo)}</b>
-                </p>
-                <Medidor className="mt-2 bg-surface!" valor={cupo.cupo ? (cupo.cupo - disponibleDespues) / cupo.cupo : 0}
-                  tono={disponibleDespues < 0 ? 'neg' : 'ink'} etiqueta="Cupo usado de la tarjeta" />
-                <p className={cx('mt-1.5 font-semibold', disponibleDespues < 0 ? 'text-neg-text' : disponibleDespues < cupo.cupo * 0.1 ? 'text-warn-text' : 'text-ink')}>
-                  {disponibleDespues < 0
-                    ? `Esta compra supera el cupo por ${cop(-disponibleDespues)}`
-                    : `Después de esta compra quedan ${cop(disponibleDespues)}`}
-                </p>
-              </div>
-            )}
-            {tarjeta && (
-              <p className="flex items-start gap-2 border-t border-line pt-3 text-[12px] text-ink-2">
-                <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted" />
-                {pago ? (
-                  <span>
-                    Entra al extracto del <b className="font-semibold">{fechaCorta(pago.corte)}</b> y la pagas hasta el <b className="font-semibold">{fechaCorta(pago.pago)}</b>:
-                    sale del presupuesto de <b className="font-semibold">{etiquetaMes(pago.mesPago)}</b> <span className="whitespace-nowrap">(sueldo del {pago.sueldo})</span>.
-                  </span>
-                ) : (
-                  <span className="text-muted">Para saber en qué mes la pagas, agrega el día de corte y de pago de la tarjeta en Deudas y metas (⋯ en la deuda).</span>
-                )}
-              </p>
-            )}
+          )}
           </div>
-        ) : (
-          <p className="rounded-2xl bg-surface-2 p-3 text-[12px] text-muted">
-            Aún no tienen tarjetas registradas. Agréguenlas en Deudas y metas (con su cupo) para elegirlas aquí.
-          </p>
-        ))}
-
-        {edicion && (quienFue(estado, edicion.creado_por) || quienFue(estado, edicion.editado_por)) && (
-          <p className="flex items-start gap-2 text-[12px] text-muted">
-            <UserRound className="mt-0.5 size-3.5 shrink-0" />
-            <span>
-              {quienFue(estado, edicion.creado_por) && <>Registrado por <b className="font-semibold text-ink-2">{quienFue(estado, edicion.creado_por)}</b> {cuando(edicion.creado)}</>}
-              {quienFue(estado, edicion.creado_por) && quienFue(estado, edicion.editado_por) && ' · '}
-              {quienFue(estado, edicion.editado_por) && <>editado por <b className="font-semibold text-ink-2">{quienFue(estado, edicion.editado_por)}</b> {cuando(edicion.editado)}</>}
-            </span>
-          </p>
-        )}
+        </div>
       </form>
     </Hoja>
   );
