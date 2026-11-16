@@ -156,8 +156,22 @@
 html {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  /* Sin el "tirar para recargar" del navegador: la app tiene el suyo (components/tirar-para-actualizar.tsx) */
+  overscroll-behavior-y: contain;
+}
+/* iPhone: el campo de fecha nativo se dibuja más ancho que su contenedor y desborda la hoja */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
 }
 body {
+  overscroll-behavior-y: contain;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);

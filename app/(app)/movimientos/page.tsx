@@ -132,7 +132,7 @@ function VistaMovimientos() {
                         <FilaMovimiento
                           key={m.id}
                           titulo={m.descripcion}
-                          subtitulo={[m.categoria, estado.rubros.find(r => r.id === m.tarjeta_id)?.nombre ?? m.medio, quienFue(estado, m.creado_por)].filter(Boolean).join(' · ')}
+                          subtitulo={[estado.rubros.find(r => r.id === m.rubro_id)?.nombre ?? m.categoria, estado.rubros.find(r => r.id === m.tarjeta_id)?.nombre ?? m.medio, quienFue(estado, m.creado_por)].filter(Boolean).join(' · ')}
                           valor={m.valor}
                           tipo={m.tipo}
                           icono={m.tipo === 'egreso' ? iconoDe(m.categoria, estado.categorias) : undefined}

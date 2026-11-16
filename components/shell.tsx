@@ -4,6 +4,7 @@ import { CloudOff, Eye } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, type ReactNode } from 'react';
 import { HojaRegistro } from './hoja-registro';
+import { TirarParaActualizar } from './tirar-para-actualizar';
 import { BarraLateral, NavegacionInferior } from './navegacion';
 import { useFinanzas } from './proveedor';
 import { Esqueleto } from './ui/estructura';
@@ -37,6 +38,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-[480px] px-4 md:max-w-[720px] lg:max-w-[1200px] lg:px-8">{children}</div>
       </main>
       <NavegacionInferior />
+      <TirarParaActualizar />
       <HojaRegistro />
       <Suspense>
         <AbrirDesdeAtajo />

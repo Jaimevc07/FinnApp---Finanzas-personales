@@ -74,11 +74,13 @@ function Tablero() {
                 : <>Lo que sobra cada mes, sumado hasta {fila.periodo.etiqueta}, si se cumple el plan</>}
             />
             <TarjetaFin
-              titular={c.hogar}
+              titular={estado.cuaderno?.nombre ?? c.hogar}
               mes={fila.periodo.etiqueta}
               cobro={fila.periodo.cobro}
-              ingresos={fila.ingresos}
-              egresos={fila.egresos}
+              ingresosPlan={fila.ingresos}
+              egresosPlan={fila.egresos}
+              ingresosReal={real.ingresos}
+              egresosReal={real.egresos}
             />
             {puedeEditar && (
               <BotonPrimario onClick={() => abrirRegistro()} className="min-w-[220px] lg:hidden">

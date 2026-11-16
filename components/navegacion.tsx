@@ -2,7 +2,7 @@
 // Barra lateral (escritorio) y barra inferior con FAB (móvil).
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, BookOpen, Calculator, ChevronsUpDown, Eye, House, Plus, Settings, ShoppingBasket, Target, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Calculator, ChevronsUpDown, Eye, House, Plus, RefreshCw, Settings, ShoppingBasket, Target, type LucideIcon } from 'lucide-react';
 import { useFinanzas } from './proveedor';
 import { cx } from './ui/botones';
 import { Marca } from './ui/marca';
@@ -34,7 +34,7 @@ export function EstadoConexion({ className }: { className?: string }) {
 
 export function BarraLateral() {
   const path = usePathname();
-  const { estado, abrirRegistro, puedeEditar } = useFinanzas();
+  const { estado, abrirRegistro, puedeEditar, refrescar, refrescando } = useFinanzas();
   return (
     <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
       <Link href="/" className="foco flex items-center gap-2.5 rounded-2xl px-2">
@@ -92,8 +92,12 @@ export function BarraLateral() {
         })}
       </nav>
 
-      <div className="mt-auto px-2">
+      <div className="mt-auto flex items-center justify-between gap-2 px-2">
         <EstadoConexion />
+        <button type="button" onClick={() => refrescar()} disabled={refrescando} title="Traer los cambios de las demás personas"
+          className="foco inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold text-ink-2 transition hover:bg-surface-2 hover:text-ink disabled:opacity-60">
+          <RefreshCw className={cx('size-3.5', refrescando && 'animate-spin text-accent-strong')} /> {refrescando ? 'Actualizando…' : 'Actualizar'}
+        </button>
       </div>
     </aside>
   );

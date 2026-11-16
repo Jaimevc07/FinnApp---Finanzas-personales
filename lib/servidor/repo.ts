@@ -17,6 +17,8 @@ import {
 type Fila = Record<string, unknown>;
 const texto = (v: unknown, max = 160) => String(v ?? '').trim().slice(0, max);
 const monto = (v: unknown) => Math.max(0, Number(v) || 0);
+/** Día del mes 1–31 o nulo */
+const diaDelMes = (v: unknown) => { const n = Math.round(Number(v)); return n >= 1 && n <= 31 ? n : null; };
 const montoONulo = (v: unknown) => (v === null || v === undefined || v === '' ? null : Math.max(0, Number(v) || 0));
 /** Clave de ícono (p. ej. "piggy-bank"); cualquier otra cosa queda en nulo = automático. */
 const icono = (v: unknown) => (typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v) ? v : null);
@@ -71,14 +73,14 @@ export async function leerEstado(): Promise<Estado> {
     (SELECT COALESCE(json_agg(t ORDER BY t.orden), '[]') FROM (SELECT id, etiqueta, cobro, orden FROM periodos) t) AS periodos,
     (SELECT COALESCE(json_agg(t ORDER BY t.orden, t.id), '[]') FROM (SELECT id, nombre, seccion, control, orden, icono FROM categorias) t) AS categorias,
     (SELECT COALESCE(json_agg(t ORDER BY t.orden, t.id), '[]') FROM (
-      SELECT id, categoria_id, nombre, orden, saldo_usd, saldo, tasa, cupo, cupo_de, recurrente, icono FROM rubros) t) AS rubros,
+      SELECT id, categoria_id, nombre, orden, saldo_usd, saldo, tasa, cupo, cupo_de, dia_corte, dia_pago, recurrente, icono FROM rubros) t) AS rubros,
     (SELECT COALESCE(json_agg(t ORDER BY t.orden, t.id), '[]') FROM (
       SELECT id, nombre, detalle, objetivo, periodo_objetivo, modo, ahorrado, rubro_id, orden, icono, pausada_desde, aporte_pausado FROM metas) t) AS metas,
     (SELECT COALESCE(json_agg(t ORDER BY t.orden, t.id), '[]') FROM (SELECT id, nombre, rubro_id, presupuesto, orden, icono FROM listas) t) AS listas,
     (SELECT COALESCE(json_agg(t ORDER BY t.orden, t.id), '[]') FROM (
       SELECT id, lista_id, categoria, producto, cantidad, precio, estado, orden, creado_por, editado_por FROM items) t) AS items,
     (SELECT COALESCE(json_agg(t ORDER BY t.fecha DESC, t.id DESC), '[]') FROM (
-      SELECT id, fecha, tipo, descripcion, categoria, medio, valor, tarjeta_id, creado, creado_por, editado_por, editado FROM movimientos) t) AS movimientos`))!;
+      SELECT id, fecha, tipo, descripcion, categoria, medio, valor, tarjeta_id, rubro_id, creado, creado_por, editado_por, editado FROM movimientos) t) AS movimientos`))!;
 
   const config = { saldo_inicial: 0 } as Record<string, unknown>;
   for (const c of r.config) config[c.clave] = CONFIG_NUMERICA.includes(c.clave as keyof Config) ? Number(c.valor) || 0 : c.valor;
@@ -164,9 +166,9 @@ export async function crearRubro(b: DatosRubro & Fila): Promise<number> {
     // Viajes, eventos y deudas son de unos meses; lo demás se repite salvo que se diga lo contrario.
     const recurrente = 'recurrente' in b ? !!b.recurrente : !['evento', 'deuda'].includes(cat.seccion);
     const comparte = await cupoCompartido(null, b.cupo_de);
-    const id = await insertar('INSERT INTO rubros (categoria_id, nombre, orden, saldo, saldo_usd, tasa, cupo, cupo_de, recurrente, icono) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    const id = await insertar('INSERT INTO rubros (categoria_id, nombre, orden, saldo, saldo_usd, tasa, cupo, cupo_de, recurrente, icono, dia_corte, dia_pago) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       categoria, texto(b.nombre, 120) || 'Nuevo rubro', await siguienteOrden('rubros'), montoONulo(b.saldo), montoONulo(b.saldo_usd), montoONulo(b.tasa),
-      comparte ? null : montoONulo(b.cupo), comparte, recurrente ? 1 : 0, icono(b.icono));
+      comparte ? null : montoONulo(b.cupo), comparte, recurrente ? 1 : 0, icono(b.icono), diaDelMes(b.dia_corte), diaDelMes(b.dia_pago));
     await escribirValores(id, (b.valores as Record<string, unknown>) ?? {}, b.autos);
     await registrar(tipoDeSeccion(cat.seccion), `agregó ${ARTICULO[cat.seccion] ?? 'el rubro'} «${texto(b.nombre, 120) || 'Nuevo rubro'}»`);
     return id;
@@ -179,6 +181,9 @@ export async function actualizarRubro(id: number, b: DatosRubro & Fila) {
     if (b.categoria_id !== undefined) {
       if (!(await una('SELECT 1 FROM categorias WHERE id = ?', Number(b.categoria_id) || 0))) throw new Error('Categoría no encontrada');
       await ejecutar('UPDATE rubros SET categoria_id = ? WHERE id = ?', Number(b.categoria_id), id);
+    }
+    for (const k of ['dia_corte', 'dia_pago'] as const) {
+      if (k in b) await ejecutar(`UPDATE rubros SET ${k} = ? WHERE id = ?`, diaDelMes(b[k]), id);
     }
     for (const k of ['saldo', 'saldo_usd', 'tasa', 'cupo'] as const) {
       if (k in b) await ejecutar(`UPDATE rubros SET ${k} = ? WHERE id = ?`, montoONulo(b[k]), id);
@@ -199,7 +204,7 @@ export async function actualizarRubro(id: number, b: DatosRubro & Fila) {
     const r = await rubroConSeccion(id);
     const NOMBRES: Record<string, string> = {
       nombre: 'nombre', categoria_id: 'categoría', saldo: 'saldo', saldo_usd: 'saldo en dólares', tasa: 'interés', cupo: 'cupo',
-      cupo_de: 'cupo compartido', recurrente: 'frecuencia', icono: 'ícono', valores: 'montos',
+      cupo_de: 'cupo compartido', dia_corte: 'día de corte', dia_pago: 'día de pago', recurrente: 'frecuencia', icono: 'ícono', valores: 'montos',
     };
     const cambios = Object.keys(NOMBRES).filter(k => k in b && (b as Fila)[k] !== undefined).map(k => NOMBRES[k]);
     if (r) await registrar(tipoDeSeccion(r.seccion), `editó ${ARTICULO[r.seccion] ?? 'el rubro'} «${r.nombre}»`, cambios.length ? `Cambió: ${cambios.join(', ')}` : '', `rubro:${id}`);
@@ -411,11 +416,12 @@ export async function borrarGrupo(listaId: number, nombre: unknown) {
 /* ---------- Tablas simples: movimientos e ítems de listas ---------- */
 const TABLAS = {
   movimientos: {
-    cols: ['fecha', 'tipo', 'descripcion', 'categoria', 'medio', 'valor', 'tarjeta_id'],
+    cols: ['fecha', 'tipo', 'descripcion', 'categoria', 'medio', 'valor', 'tarjeta_id', 'rubro_id'],
     async validar(r: Fila) {
       if ('tipo' in r && r.tipo !== 'ingreso' && r.tipo !== 'egreso') throw new Error('Tipo no válido');
       if ('fecha' in r && !/^\d{4}-\d{2}-\d{2}$/.test(String(r.fecha))) throw new Error('Fecha no válida');
       if (r.tarjeta_id != null && !(await una('SELECT 1 FROM rubros WHERE id = ?', Number(r.tarjeta_id)))) throw new Error('Tarjeta no encontrada');
+      if (r.rubro_id != null && !(await una('SELECT 1 FROM rubros WHERE id = ?', Number(r.rubro_id)))) throw new Error('Ítem del presupuesto no encontrado');
     },
   },
   items: {
@@ -437,6 +443,7 @@ async function limpiar(t: TablaSimple, body: Fila) {
   if ('orden' in r) r.orden = Math.round(monto(r.orden));
   // Sin tarjeta (o medio distinto de tarjeta de crédito) = nulo
   if ('tarjeta_id' in r) r.tarjeta_id = Number(r.tarjeta_id) > 0 ? Number(r.tarjeta_id) : null;
+  if ('rubro_id' in r) r.rubro_id = Number(r.rubro_id) > 0 ? Number(r.rubro_id) : null;
   for (const k of ['descripcion', 'categoria', 'producto', 'medio', 'fecha', 'tipo', 'estado']) if (k in r) r[k] = texto(r[k]);
   await def.validar(r);
   return r;
@@ -691,8 +698,9 @@ export async function importar(e: Estado & { mercado?: Omit<ItemLista, 'lista_id
     for (const [i, x] of e.rubros.entries()) {
       const c = cat.get(Number(x.categoria_id));
       if (!c) continue;
-      rub.set(Number(x.id), await insertar('INSERT INTO rubros (categoria_id, nombre, orden, saldo_usd, saldo, tasa, cupo, recurrente, icono) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        c, texto(x.nombre, 120), i, montoONulo(x.saldo_usd), montoONulo(x.saldo), montoONulo(x.tasa), montoONulo(x.cupo), x.recurrente === false ? 0 : 1, icono(x.icono)));
+      rub.set(Number(x.id), await insertar('INSERT INTO rubros (categoria_id, nombre, orden, saldo_usd, saldo, tasa, cupo, recurrente, icono, dia_corte, dia_pago) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        c, texto(x.nombre, 120), i, montoONulo(x.saldo_usd), montoONulo(x.saldo), montoONulo(x.tasa), montoONulo(x.cupo), x.recurrente === false ? 0 : 1, icono(x.icono),
+        diaDelMes(x.dia_corte), diaDelMes(x.dia_pago)));
     }
     // El cupo compartido se enlaza después: la deuda principal puede venir más abajo
     for (const x of e.rubros) {
@@ -727,7 +735,9 @@ export async function importar(e: Estado & { mercado?: Omit<ItemLista, 'lista_id
       for (const it of e.mercado) await crear('items', { ...it, lista_id: id }, false);
     }
     for (const mv of e.movimientos ?? []) {
-      await crear('movimientos', { ...mv, tarjeta_id: mv.tarjeta_id ? rub.get(Number(mv.tarjeta_id)) ?? null : null } as unknown as Fila, false);
+      await crear('movimientos', {
+        ...mv, tarjeta_id: mv.tarjeta_id ? rub.get(Number(mv.tarjeta_id)) ?? null : null, rubro_id: mv.rubro_id ? rub.get(Number(mv.rubro_id)) ?? null : null,
+      } as unknown as Fila, false);
     }
     await categoriaAhorro();
     await registrar('ajustes', 'restauró una copia de seguridad', `${e.periodos.length} meses · ${e.rubros.length} rubros · ${(e.movimientos ?? []).length} movimientos`);

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { periodoInicial, serie, type ResumenPeriodo } from '@/lib/calculos';
 import { cuadernoElegido, olvidarCuaderno } from '@/lib/cuaderno-cliente';
+import { quienFue } from '@/lib/miembros';
 import { supabaseNavegador } from '@/lib/supabase/cliente';
 import {
   claveCelda, type Categoria, type Config, type DatosRubro, type Estado, type ItemLista, type Lista, type Meta,
@@ -27,6 +28,9 @@ type Ctx = {
   fila: ResumenPeriodo | undefined;
   /** Permiso en el cuaderno: el lector solo ve; el editor ve y edita; el propietario además maneja la gente */
   puedeEditar: boolean;
+  /** Trae del servidor los cambios de las demás personas (tirar hacia abajo, al volver a la app y cada 30 s) */
+  refrescar: () => Promise<void>;
+  refrescando: boolean;
   esPropietario: boolean;
 
   setConfig: (parcial: Partial<Config>) => void;
@@ -106,6 +110,15 @@ function irACuadernos(motivo?: 'sin-acceso') {
 export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
   const [estado, setEstadoCrudo] = useState<Estado | null>(null);
   const [pendientes, setPendientes] = useState(0);
+  const [refrescando, setRefrescando] = useState(false);
+  const pendientesRef = useRef(0);
+  pendientesRef.current = pendientes;
+  const estadoRef = useRef<Estado | null>(null);
+  estadoRef.current = estado;
+  const ultimoRefresco = useRef(0);
+  // Una sola actualización a la vez (la del gesto espera a la automática si ya va en camino)
+  const enVuelo = useRef<Promise<void> | null>(null);
+  const avisoRef = useRef<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [periodoId, setPeriodoCrudo] = useState('');
@@ -119,9 +132,10 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
   lector.current = !!estado && permiso === 'lector';
 
   const avisar = useCallback((msg: string) => {
+    avisoRef.current = msg;
     setAviso(msg);
     clearTimeout(tAviso.current);
-    tAviso.current = setTimeout(() => setAviso(null), 3200);
+    tAviso.current = setTimeout(() => { avisoRef.current = null; setAviso(null); }, 3200);
   }, []);
 
   const setEstado = useCallback((e: Estado | ((prev: Estado) => Estado)) => {
@@ -132,8 +146,8 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const pedir = useCallback(async <T,>(metodo: string, url: string, body?: unknown): Promise<T> => {
-    setPendientes(n => n + 1);
+  const pedir = useCallback(async <T,>(metodo: string, url: string, body?: unknown, silencioso = false): Promise<T> => {
+    if (!silencioso) setPendientes(n => n + 1);
     // Un archivo (Blob) se envía tal cual; lo demás como JSON.
     const crudo = body instanceof Blob;
     try {
@@ -157,13 +171,13 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     } catch (e) {
       if (e instanceof TypeError) {
         setOffline(true);
-        avisar('Sin conexión: el cambio no se guardó');
-      } else {
+        if (!silencioso) avisar('Sin conexión: el cambio no se guardó');
+      } else if (!silencioso) {
         avisar(e instanceof Error ? e.message : 'No se pudo guardar');
       }
       throw e;
     } finally {
-      setPendientes(n => n - 1);
+      if (!silencioso) setPendientes(n => n - 1);
     }
   }, [avisar]);
 
@@ -206,6 +220,56 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     await Promise.allSettled(fns.map(x => x.fn()));
   }, []);
 
+  /**
+   * Trae los datos del servidor. A mano (tirar hacia abajo) primero envía lo pendiente y avisa al terminar.
+   * En segundo plano no interrumpe: se salta si hay algo por guardar, para no pisar lo que se está escribiendo.
+   */
+  const refrescar = useCallback(async (manual = true) => {
+    if (!cuadernoId.current) return;
+    if (!manual && (enVuelo.current || temporizadores.current.size > 0 || pendientesRef.current > 0 || Date.now() - ultimoRefresco.current < 5000)) return;
+    if (manual) {
+      setRefrescando(true);
+      await enVuelo.current?.catch(() => {});
+      await vaciar();
+    }
+    ultimoRefresco.current = Date.now();
+    const antes = estadoRef.current;
+    let listo: () => void = () => {};
+    enVuelo.current = new Promise<void>(r => { listo = r; });
+    try {
+      const nuevo = await pedir<Estado>('GET', 'estado', undefined, true);
+      // Movimientos que registraron otras personas desde la última vez
+      const vistos = new Set(antes?.movimientos.map(m => m.id) ?? []);
+      const ajenos = antes ? nuevo.movimientos.filter(m => !vistos.has(m.id) && m.creado_por && m.creado_por !== nuevo.yo) : [];
+      setEstado(nuevo);
+      if (ajenos.length === 1) avisar(`${quienFue(nuevo, ajenos[0].creado_por) ?? 'Alguien'} registró «${ajenos[0].descripcion}»`);
+      else if (ajenos.length > 1) avisar(`${ajenos.length} movimientos nuevos de otras personas`);
+      // "Todo al día" solo si no hay otro aviso a la vista (p. ej. el de un movimiento que acaba de llegar)
+      else if (manual && !avisoRef.current) avisar('Todo al día');
+    } catch (e) {
+      if (manual) avisar(e instanceof TypeError ? 'Sin conexión: no se pudo actualizar' : 'No se pudo actualizar');
+    } finally {
+      enVuelo.current = null;
+      listo();
+      if (manual) setRefrescando(false);
+    }
+  }, [avisar, pedir, setEstado, vaciar]);
+
+  // Los cambios de las demás personas llegan solos: al volver a la app o a la pestaña, y cada 30 s mientras se ve.
+  useEffect(() => {
+    const alVolver = () => { if (document.visibilityState === 'visible') refrescar(false); };
+    const reloj = setInterval(alVolver, 30_000);
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alVolver);
+    window.addEventListener('online', alVolver);
+    return () => {
+      clearInterval(reloj);
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alVolver);
+      window.removeEventListener('online', alVolver);
+    };
+  }, [refrescar]);
+
   /** En un cuaderno de solo lectura no se envía nada (el servidor también lo rechaza). */
   const bloqueado = useCallback(() => {
     if (!lector.current) return false;
@@ -239,7 +303,7 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
     else diferir(`celda:${rubroId}:${pid}`, () => pedir('PUT', 'celdas', body));
   }, [bloqueado, diferir, pedir, setEstado]);
 
-  const valor = useMemo<Omit<Ctx, 'estado' | 'conexion' | 'aviso' | 'periodoId' | 'filas' | 'fila' | 'registro' | 'puedeEditar' | 'esPropietario'>>(() => ({
+  const valor = useMemo<Omit<Ctx, 'estado' | 'conexion' | 'aviso' | 'periodoId' | 'filas' | 'fila' | 'registro' | 'puedeEditar' | 'esPropietario' | 'refrescar' | 'refrescando'>>(() => ({
     avisar,
     setPeriodoId,
     setConfig,
@@ -303,7 +367,10 @@ export function ProveedorFinanzas({ children }: { children: React.ReactNode }) {
   const puedeEditar = !!estado && permiso !== 'lector';
 
   return (
-    <Contexto.Provider value={{ ...valor, estado, conexion, aviso, periodoId, filas, fila, registro, puedeEditar, esPropietario: permiso === 'propietario' }}>
+    <Contexto.Provider value={{
+      ...valor, estado, conexion, aviso, periodoId, filas, fila, registro, puedeEditar, esPropietario: permiso === 'propietario',
+      refrescar, refrescando,
+    }}>
       <ProveedorSoloLectura value={!!estado && !puedeEditar}>{children}</ProveedorSoloLectura>
     </Contexto.Provider>
   );

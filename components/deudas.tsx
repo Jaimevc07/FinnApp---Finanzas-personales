@@ -33,6 +33,8 @@ export function HojaDeuda({ deuda, abierta, onCerrar }: { deuda: Rubro | null; a
   const [cupo, setCupo] = useState(0);
   const [cupoModo, setCupoModo] = useState<'propio' | 'compartido'>('propio');
   const [cupoDe, setCupoDe] = useState<number | ''>('');
+  const [corteTxt, setCorteTxt] = useState('');
+  const [pagoTxt, setPagoTxt] = useState('');
 
   useEffect(() => {
     if (!abierta) return;
@@ -41,6 +43,8 @@ export function HojaDeuda({ deuda, abierta, onCerrar }: { deuda: Rubro | null; a
     setCupo(deuda?.cupo ?? 0);
     setCupoModo(deuda?.cupo_de ? 'compartido' : 'propio');
     setCupoDe(deuda?.cupo_de ?? '');
+    setCorteTxt(deuda?.dia_corte ? String(deuda.dia_corte) : '');
+    setPagoTxt(deuda?.dia_pago ? String(deuda.dia_pago) : '');
     setCategoriaId(deuda?.categoria_id ?? categorias[0]?.id ?? '');
     setMoneda(deuda?.saldo_usd != null ? 'USD' : 'COP');
     setSaldo(deuda?.saldo ?? 0);
@@ -85,6 +89,9 @@ export function HojaDeuda({ deuda, abierta, onCerrar }: { deuda: Rubro | null; a
     e.preventDefault();
     if (!nombre.trim()) return avisar('Escribe el nombre de la deuda');
     if (cupoModo === 'compartido' && !cupoDe) return avisar('Elige la deuda cuyo cupo usa');
+    const diaCorte = corteTxt ? Number(corteTxt) : null, diaPago = pagoTxt ? Number(pagoTxt) : null;
+    for (const d of [diaCorte, diaPago]) if (d !== null && !(Number.isInteger(d) && d >= 1 && d <= 31)) return avisar('Los días de corte y de pago van del 1 al 31');
+    if ((diaCorte === null) !== (diaPago === null)) return avisar('Escribe el día de corte y el día de pago (los dos)');
     const datos = {
       nombre: nombre.trim(),
       categoria_id: categoriaId ? Number(categoriaId) : undefined,
@@ -94,6 +101,9 @@ export function HojaDeuda({ deuda, abierta, onCerrar }: { deuda: Rubro | null; a
       tasa: tasa || null,
       cupo: cupoModo === 'propio' ? cupo || null : null,
       cupo_de: cupoModo === 'compartido' && cupoDe ? Number(cupoDe) : null,
+      // La parte que usa el cupo de otra deuda toma las fechas de esa tarjeta
+      dia_corte: cupoModo === 'propio' ? (corteTxt ? Number(corteTxt) : null) : null,
+      dia_pago: cupoModo === 'propio' ? (pagoTxt ? Number(pagoTxt) : null) : null,
       icono,
       ...(simulacion
         ? moneda === 'USD' && plan === 'unico'
@@ -205,6 +215,27 @@ export function HojaDeuda({ deuda, abierta, onCerrar }: { deuda: Rubro | null; a
                 {otrasTarjetas.map(r => <option key={r.id} value={r.id}>{r.nombre}{r.cupo ? ` · cupo ${cop(r.cupo)}` : ''}</option>)}
               </Selector>
             </Campo>
+          )}
+          {cupoModo === 'propio' ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <Campo etiqueta="Día de corte" htmlFor="d-corte">
+                  <Entrada id="d-corte" inputMode="numeric" value={corteTxt} onChange={e => setCorteTxt(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    placeholder="Ej: 15" className="bg-surface! text-right tabular-nums" />
+                </Campo>
+                <Campo etiqueta="Día límite de pago" htmlFor="d-pago">
+                  <Entrada id="d-pago" inputMode="numeric" value={pagoTxt} onChange={e => setPagoTxt(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    placeholder="Ej: 30" className="bg-surface! text-right tabular-nums" />
+                </Campo>
+              </div>
+              <p className="text-[12px] text-muted">
+                {corteTxt && pagoTxt
+                  ? `Lo que compres hasta el ${corteTxt} entra en ese extracto; desde el ${Number(corteTxt) + 1} pasa al siguiente. Cada extracto se paga hasta el ${pagoTxt}${Number(pagoTxt) <= Number(corteTxt) ? ' del mes siguiente' : ''}.`
+                  : 'Si es una tarjeta de crédito: con el día de corte y de pago la app sabe en qué mes pagas cada compra.'}
+              </p>
+            </div>
+          ) : cupoDe && (
+            <p className="text-[12px] text-muted">El día de corte y de pago son los de la tarjeta principal.</p>
           )}
         </div>
 

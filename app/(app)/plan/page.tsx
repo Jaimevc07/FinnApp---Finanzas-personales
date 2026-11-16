@@ -1,5 +1,5 @@
 'use client';
-import { Check, CircleCheck, Coins, CreditCard, Ellipsis, Lightbulb, Plane, Plus, Target, TriangleAlert } from 'lucide-react';
+import { CalendarClock, Check, CircleCheck, Coins, CreditCard, Ellipsis, Lightbulb, Plane, Plus, ShoppingBag, Target, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { HojaDeuda, HojaEvento, type EventoSel } from '@/components/deudas';
 import { FilaMeta, HojaMeta } from '@/components/metas';
@@ -10,11 +10,11 @@ import { PastillaSuave, cx } from '@/components/ui/botones';
 import { Campo, Entrada, EntradaDinero } from '@/components/ui/campos';
 import { Insignia, Medidor, MontoHeroe } from '@/components/ui/datos';
 import { EncabezadoPantalla, Tarjeta, Vacio } from '@/components/ui/estructura';
-import { calcularMetas, cuposTarjetas, eventosPlaneados, planDeudas, tablero, tarjetaPrincipal, type CupoTarjeta, type Deuda } from '@/lib/calculos';
+import { calcularMetas, comprasDeTarjeta, cuposTarjetas, eventosPlaneados, planDeudas, tablero, tarjetaPrincipal, type CupoTarjeta, type Deuda } from '@/lib/calculos';
 import type { LucideIcon } from 'lucide-react';
-import { cop, copCorto, pct, tasaEA, tasaMes, usd } from '@/lib/formato';
+import { conSigno, cop, copCorto, fechaCorta, pct, tasaEA, tasaMes, usd } from '@/lib/formato';
 import { iconoRubro } from '@/lib/iconos';
-import { diaSueldo } from '@/lib/meses';
+import { diaSueldo, etiquetaMes } from '@/lib/meses';
 import type { Meta, Rubro } from '@/lib/tipos';
 
 export default function Plan() {
@@ -125,6 +125,7 @@ function VistaPlan() {
                       </div>
                       <Medidor className="mt-1.5" valor={base ? d.pagado / base : 0} tono={d.liquidada ? 'pos' : 'ink'} etiqueta={`Avance ${d.rubro.nombre}`} />
                       {cupos.find(x => x.rubro.id === d.rubro.id) && <BloqueCupo c={cupos.find(x => x.rubro.id === d.rubro.id)!} />}
+                      <ComprasDelMes tarjeta={d.rubro} />
                       <FaltaProgramar d={d} />
                       <PagosDeuda d={d} />
                     </li>
@@ -263,6 +264,64 @@ function BloqueCupo({ c }: { c: CupoTarjeta }) {
   );
 }
 
+/**
+ * Compras del mes con la tarjeta y con qué sueldo se pagan, según el día de corte: lo comprado hasta el
+ * corte entra en ese extracto; después del corte, en el siguiente.
+ */
+function ComprasDelMes({ tarjeta }: { tarjeta: Rubro }) {
+  const { estado, periodoId, abrirRegistro } = useDatos();
+  const t = tarjetaPrincipal(estado, tarjeta);
+  const { compras, total, porMesPago } = comprasDeTarjeta(estado, t.id, periodoId);
+  const conFechas = !!(t.dia_corte && t.dia_pago);
+  if (!compras.length && !conFechas) return null;
+  const mes = etiquetaMes(periodoId);
+  return (
+    <div className="mt-3 rounded-2xl border border-line p-3 text-[12px]">
+      <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="flex items-center gap-1.5 font-semibold text-ink-2"><ShoppingBag className="size-3.5" /> Compras de {mes}</span>
+        {compras.length > 0 && <b className="font-semibold tabular-nums">{cop(total)}</b>}
+      </p>
+      {compras.length ? (
+        <ul className="mt-2 flex flex-col divide-y divide-line">
+          {compras.map(m => (
+            <li key={m.id}>
+              <button type="button" onClick={() => abrirRegistro(m)} className="foco -mx-1 flex w-[calc(100%+0.5rem)] items-start gap-2 rounded-lg px-1 py-2 text-left hover:bg-surface-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-ink">{m.descripcion}</span>
+                  <span className="block truncate text-muted">{fechaCorta(m.fecha)} · {m.categoria}</span>
+                  {m.pago && <span className="block text-ink-2">Se paga el {fechaCorta(m.pago.pago)} · <span className="whitespace-nowrap">sueldo del {m.pago.sueldo}</span></span>}
+                </span>
+                <span className="shrink-0 text-[13px] font-semibold tabular-nums text-neg-text">{conSigno(m.valor, 'egreso')}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-muted">Sin compras registradas con esta tarjeta en {mes}.</p>
+      )}
+      {porMesPago.length > 0 && (
+        <div className="mt-2 flex flex-col gap-1.5 border-t border-line pt-2">
+          {porMesPago.map(g => (
+            <p key={g.mesPago} className="flex flex-wrap items-baseline justify-between gap-x-2 rounded-xl bg-surface-2 px-2.5 py-2">
+              <span className="text-ink-2">
+                {g.cantidad === 1 ? 'Se paga' : `Se pagan (${g.cantidad})`} con el sueldo del <b className="font-semibold text-ink">{g.sueldo}</b>
+                <span className="text-muted"> · {etiquetaMes(g.mesPago)}, hasta el {fechaCorta(g.pago)}</span>
+              </span>
+              <b className="font-semibold tabular-nums">{cop(g.total)}</b>
+            </p>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 flex items-center gap-1.5 text-muted">
+        <CalendarClock className="size-3.5 shrink-0" />
+        {conFechas
+          ? `Corte el ${t.dia_corte} · pago hasta el ${t.dia_pago}${(t.dia_pago ?? 0) <= (t.dia_corte ?? 0) ? ' del mes siguiente' : ''}. Lo comprado después del corte se paga un mes después.`
+          : 'Agrega el día de corte y de pago (⋯) para saber con qué sueldo se paga cada compra.'}
+      </p>
+    </div>
+  );
+}
+
 function FaltaProgramar({ d }: { d: Deuda }) {
   if (d.faltaProgramar <= 0.5) return null;
   return (
@@ -323,6 +382,7 @@ function TarjetaCompartida({ partes, cupo, icono: Icono, trm, onEditar }: {
       </div>
       <Medidor className="mt-1.5" valor={base ? pagado / base : 0} tono={liquidada ? 'pos' : 'ink'} etiqueta={`Avance ${nombre}`} />
       {cupo && <BloqueCupo c={cupo} />}
+      <ComprasDelMes tarjeta={partes.map(x => x.rubro).find(r => !r.cupo_de) ?? partes[0].rubro} />
 
       <ul className="mt-3 flex flex-col divide-y divide-line border-t border-line">
         {partes.map(d => {

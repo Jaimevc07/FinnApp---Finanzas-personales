@@ -50,6 +50,9 @@ export type Rubro = {
   cupo: number | null;
   /** Esta deuda es parte de otra tarjeta y usa su cupo (p. ej. la parte en dólares de la misma tarjeta). */
   cupo_de: number | null;
+  /** Tarjeta de crédito: día de corte del extracto y día límite de pago (1–31) */
+  dia_corte?: number | null;
+  dia_pago?: number | null;
   /** true: se repite todos los meses · false: solo aparece en los meses que tienen valor (primas, bonos, pagos únicos). */
   recurrente: boolean;
   icono: string | null;
@@ -113,6 +116,8 @@ export type Movimiento = {
   valor: number;
   /** Tarjeta de crédito (rubro de deuda con cupo) con que se pagó, si aplica. */
   tarjeta_id: number | null;
+  /** Ítem del presupuesto al que corresponde (p. ej. "Combustible" en "Transporte y Salud") */
+  rubro_id?: number | null;
   /** Cuándo y quién lo registró; cuándo y quién lo editó por última vez (usuario_id de miembros) */
   creado?: string;
   creado_por?: string | null;
@@ -212,6 +217,8 @@ export type DatosRubro = {
   tasa?: number | null;
   cupo?: number | null;
   cupo_de?: number | null;
+  dia_corte?: number | null;
+  dia_pago?: number | null;
   recurrente?: boolean;
   icono?: string | null;
   /** Valor por mes (AAAA-MM). Si viene, reemplaza todos los valores del rubro. */

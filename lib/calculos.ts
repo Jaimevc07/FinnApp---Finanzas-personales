@@ -1,6 +1,6 @@
 // Cálculos del tablero: réplica de las fórmulas del Excel "Visual Board Financiero",
 // ampliada con varias deudas, metas y listas. Funciones puras (cliente y servidor).
-import { etiquetaMes, mesesEntre } from './meses';
+import { cobroDe, diaSueldo, etiquetaMes, mesesEntre, mesSiguiente } from './meses';
 import {
   claveCelda, OTROS_GASTOS, OTROS_INGRESOS,
   type Categoria, type Config, type Estado, type ItemLista, type Lista, type Meta, type Movimiento, type Periodo, type Rubro, type Seccion,
@@ -416,6 +416,75 @@ export function cuposTarjetas(e: Estado, mes: string): CupoTarjeta[] {
     const usado = deudaPlan + compras;
     return { rubro: r, partes, cupo: r.cupo!, deudaPlan, compras, usado, disponible: r.cupo! - usado };
   });
+}
+
+/** Lo real del mes en un ítem del presupuesto (movimientos con ese rubro). */
+export function realPorRubro(e: Estado, periodoId: string, rubroId: number, sinMovimiento?: number): number {
+  return e.movimientos
+    .filter(m => m.rubro_id === rubroId && m.fecha.startsWith(periodoId) && m.id !== sinMovimiento)
+    .reduce((s, m) => s + m.valor, 0);
+}
+
+/* ---------------- Corte y pago de las tarjetas ---------------- */
+export type PagoCompra = {
+  /** Fecha de corte del extracto en que entra la compra (AAAA-MM-DD) */
+  corte: string;
+  /** Fecha límite para pagar ese extracto (AAAA-MM-DD) */
+  pago: string;
+  /** Mes del plan en que sale la plata (AAAA-MM) */
+  mesPago: string;
+  /** "30 Nov": el sueldo con que se cubre ese mes (esquema a mes vencido) */
+  sueldo: string;
+};
+
+const ultimoDia = (mes: string) => { const [a, m] = mes.split('-').map(Number); return new Date(a, m, 0).getDate(); };
+const fechaDe = (mes: string, dia: number) => `${mes}-${String(Math.min(dia, ultimoDia(mes))).padStart(2, '0')}`;
+
+/**
+ * En qué extracto entra una compra y cuándo se paga. Comprar hasta el día de corte la deja en el
+ * extracto de ese mes; después del corte, en el del mes siguiente. Si el día de pago es menor o igual
+ * al de corte, el pago cae en el mes siguiente al corte.
+ */
+export function pagoDeCompra(e: Estado | null, fecha: string, diaCorte?: number | null, diaPago?: number | null): PagoCompra | null {
+  if (!diaCorte || !diaPago || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return null;
+  const mes = fecha.slice(0, 7);
+  const dia = Number(fecha.slice(8, 10));
+  const mesCorte = dia <= Math.min(diaCorte, ultimoDia(mes)) ? mes : mesSiguiente(mes);
+  const mesPago = diaPago > diaCorte ? mesCorte : mesSiguiente(mesCorte);
+  const periodo = e?.periodos.find(p => p.id === mesPago);
+  return { corte: fechaDe(mesCorte, diaCorte), pago: fechaDe(mesPago, diaPago), mesPago, sueldo: diaSueldo(periodo?.cobro ?? cobroDe(mesPago)) };
+}
+
+/** Corte y pago de una compra registrada con tarjeta (las fechas son las de la tarjeta principal). */
+export function pagoDeMovimiento(e: Estado, m: Pick<Movimiento, 'fecha' | 'tarjeta_id'>): PagoCompra | null {
+  const r = m.tarjeta_id ? e.rubros.find(x => x.id === m.tarjeta_id) : undefined;
+  if (!r) return null;
+  const t = tarjetaPrincipal(e, r);
+  return pagoDeCompra(e, m.fecha, t.dia_corte, t.dia_pago);
+}
+
+export type ComprasTarjeta = {
+  compras: (Movimiento & { pago: PagoCompra | null })[];
+  total: number;
+  /** Cuánto se paga en cada mes (según el corte) */
+  porMesPago: { mesPago: string; sueldo: string; pago: string; total: number; cantidad: number }[];
+};
+
+/** Compras con una tarjeta (todas sus partes) registradas en el mes, con el mes en que se pagan. */
+export function comprasDeTarjeta(e: Estado, principalId: number, periodoId: string): ComprasTarjeta {
+  const ids = new Set(e.rubros.filter(x => tarjetaPrincipal(e, x).id === principalId).map(x => x.id));
+  const compras = movimientosDe(e, periodoId)
+    .filter(m => m.tipo === 'egreso' && m.tarjeta_id != null && ids.has(m.tarjeta_id))
+    .map(m => ({ ...m, pago: pagoDeMovimiento(e, m) }));
+  const grupos = new Map<string, { mesPago: string; sueldo: string; pago: string; total: number; cantidad: number }>();
+  for (const c of compras) {
+    if (!c.pago) continue;
+    const g = grupos.get(c.pago.mesPago) ?? { mesPago: c.pago.mesPago, sueldo: c.pago.sueldo, pago: c.pago.pago, total: 0, cantidad: 0 };
+    g.total += c.valor;
+    g.cantidad += 1;
+    grupos.set(c.pago.mesPago, g);
+  }
+  return { compras, total: compras.reduce((s, c) => s + c.valor, 0), porMesPago: [...grupos.values()].sort((a, b) => a.mesPago.localeCompare(b.mesPago)) };
 }
 
 /* ---------------- Salud financiera ---------------- */

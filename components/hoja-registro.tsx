@@ -1,16 +1,20 @@
 'use client';
 // Formulario para registrar o editar un movimiento real (ingreso o egreso).
-import { Check, CreditCard, Trash2, UserRound } from 'lucide-react';
-import { cuando, quienFue } from '@/lib/miembros';
-import { iconoDe, iconoRubro } from '@/lib/iconos';
+// Se elige la categoría y el ítem del presupuesto (p. ej. Transporte y Salud → Combustible) para ver
+// cuánto queda de ese ítem en el mes; con tarjeta de crédito, en qué extracto entra y cuándo se paga.
+import { CalendarClock, Check, CreditCard, Trash2, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { categoriasMovimiento, cuposTarjetas, realPorCategoria, tarjetaPrincipal, valorCelda } from '@/lib/calculos';
-import { cop, copCorto, hoyISO } from '@/lib/formato';
+import {
+  categoriasMovimiento, cuposTarjetas, pagoDeCompra, realPorCategoria, realPorRubro, tarjetaPrincipal, valorCelda,
+} from '@/lib/calculos';
+import { conSigno, cop, fechaCorta, hoyISO } from '@/lib/formato';
+import { iconoDe, iconoRubro } from '@/lib/iconos';
 import { etiquetaMes } from '@/lib/meses';
-import { MEDIOS_PAGO, type TipoMovimiento } from '@/lib/tipos';
+import { cuando, quienFue } from '@/lib/miembros';
+import { MEDIOS_PAGO, type Rubro, type TipoMovimiento } from '@/lib/tipos';
 import { AvisoMesFueraCompacto } from './aviso-mes';
 import { useFinanzas } from './proveedor';
-import { BotonAcento, BotonSecundario, PastillaSuave, cx } from './ui/botones';
+import { BotonAcento, BotonSecundario, cx } from './ui/botones';
 import { Campo, Entrada, EntradaDinero, Selector } from './ui/campos';
 import { Medidor } from './ui/datos';
 import { Hoja } from './ui/hoja';
@@ -25,6 +29,7 @@ export function HojaRegistro() {
   const [valor, setValor] = useState(0);
   const [descripcion, setDescripcion] = useState('');
   const [categoria, setCategoria] = useState('');
+  const [rubroId, setRubroId] = useState<number | null>(null);
   const [medio, setMedio] = useState<string>(MEDIOS_PAGO[0]);
   const [fecha, setFecha] = useState(hoyISO());
   const [tarjetaId, setTarjetaId] = useState<number | ''>('');
@@ -50,11 +55,13 @@ export function HojaRegistro() {
     setValor(borrador?.valor ?? 0);
     setDescripcion(borrador?.descripcion ?? '');
     setCategoria(borrador?.categoria ?? '');
+    setRubroId(borrador?.rubro_id ?? null);
     setMedio(borrador?.medio ?? MEDIOS_PAGO[0]);
     setFecha(borrador?.fecha ?? hoyISO());
     // '' = la primera tarjeta con cupo · 0 = otra tarjeta. Una compra vieja sin tarjeta queda como "otra".
     const guardada = borrador?.tarjeta_id && estado ? estado.rubros.find(r => r.id === borrador.tarjeta_id) : undefined;
     setTarjetaId(guardada && estado ? tarjetaPrincipal(estado, guardada).id : (borrador?.id && borrador.medio === 'Tarjeta de crédito' ? 0 : ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registro.abierto, borrador, registro.tipo]);
 
   // Si la categoría elegida no aplica al tipo (p. ej. al cambiar de egreso a ingreso), usa la de
@@ -64,16 +71,34 @@ export function HojaRegistro() {
   const mesMov = fecha.slice(0, 7);
   const fueraDelPlan = !!estado && /^\d{4}-\d{2}/.test(fecha) && !estado.periodos.some(p => p.id === mesMov);
 
-  // Lo planeado para la categoría en el mes del movimiento: sugerencias y cuánto queda.
+  // Ítems del presupuesto de la categoría en el mes del movimiento (los que tienen monto van primero)
   const catPlan = estado?.categorias.find(c => c.nombre === cat);
-  const rubrosPlan = estado && catPlan && !fueraDelPlan
-    ? estado.rubros.filter(r => r.categoria_id === catPlan.id).map(r => ({ r, v: valorCelda(estado, r, mesMov) })).filter(x => x.v > 0)
+  const items = estado && catPlan
+    ? estado.rubros.filter(r => r.categoria_id === catPlan.id)
+      .map(r => {
+        const plan = fueraDelPlan ? 0 : valorCelda(estado, r, mesMov);
+        const antes = realPorRubro(estado, mesMov, r.id, edicion?.id);
+        return { r, plan, antes };
+      })
+      .sort((a, b) => Number(b.plan > 0) - Number(a.plan > 0))
     : [];
-  const planCat = rubrosPlan.reduce((s, x) => s + x.v, 0);
+  const item = items.find(x => x.r.id === rubroId);
+  const planCat = items.reduce((s, x) => s + x.plan, 0);
   const yaGastado = estado && tipo === 'egreso' && planCat > 0
     ? (realPorCategoria(estado, mesMov).get(cat) ?? 0) - (edicion && edicion.categoria === cat && edicion.fecha?.startsWith(mesMov) ? edicion.valor ?? 0 : 0)
     : 0;
   const conEste = yaGastado + (tipo === 'egreso' ? valor : 0);
+
+  function elegirItem(r: Rubro | null) {
+    const anterior = items.find(x => x.r.id === rubroId)?.r.nombre;
+    setRubroId(r?.id ?? null);
+    if (!r) return;
+    // La descripción toma el nombre del ítem si estaba vacía o tenía el del ítem anterior
+    if (!descripcion.trim() || descripcion === anterior) setDescripcion(r.nombre);
+    // En un ingreso sin valor, se propone lo que falta por recibir de ese ítem
+    const x = items.find(y => y.r.id === r.id);
+    if (tipo === 'ingreso' && !valor && x && x.plan > x.antes) setValor(Math.round(x.plan - x.antes));
+  }
 
   // Compra con tarjeta de crédito: cupo que queda antes y después de esta compra
   const conTarjeta = tipo === 'egreso' && medio === 'Tarjeta de crédito';
@@ -83,6 +108,8 @@ export function HojaRegistro() {
   const yaContada = edicion && edicion.tarjeta_id === tarjeta?.id && (edicion.fecha ?? '').slice(0, 7) <= mesMov ? edicion.valor ?? 0 : 0;
   const disponibleAntes = cupo ? cupo.disponible + yaContada : 0;
   const disponibleDespues = disponibleAntes - valor;
+  // En qué extracto entra y cuándo se paga (según el día de corte y de pago de la tarjeta)
+  const pago = estado && tarjeta ? pagoDeCompra(estado, fecha, tarjeta.dia_corte, tarjeta.dia_pago) : null;
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -90,8 +117,9 @@ export function HojaRegistro() {
     setEnviando(true);
     try {
       await guardarMovimiento({
-        id: edicion?.id, tipo, valor, descripcion: descripcion.trim() || cat, categoria: cat, medio, fecha,
+        id: edicion?.id, tipo, valor, descripcion: descripcion.trim() || item?.r.nombre || cat, categoria: cat, medio, fecha,
         tarjeta_id: conTarjeta && tarjeta ? tarjeta.id : null,
+        rubro_id: item?.r.id ?? null,
       });
       // Los movimientos se agrupan por mes calendario: lleva la vista al mes del movimiento.
       const periodo = estado?.periodos.find(p => p.id === mesMov);
@@ -129,13 +157,13 @@ export function HojaRegistro() {
               <Trash2 />
             </BotonSecundario>
           )}
-          <BotonAcento type="submit" form="form-registro" className="flex-1" disabled={enviando}>
+          <BotonAcento type="submit" form="form-registro" className="min-w-0 flex-1" disabled={enviando}>
             {enviando ? 'Guardando…' : edicion ? 'Guardar cambios' : tipo === 'ingreso' ? 'Registrar ingreso' : 'Registrar egreso'}
           </BotonAcento>
         </div>
       }
     >
-      <form id="form-registro" onSubmit={guardar} className="flex flex-col gap-4">
+      <form id="form-registro" onSubmit={guardar} className="flex min-w-0 flex-col gap-4">
         <Segmentado
           etiqueta="Tipo de movimiento"
           valor={tipo}
@@ -145,10 +173,8 @@ export function HojaRegistro() {
         <Campo etiqueta="Valor" htmlFor="r-valor">
           <EntradaDinero id="r-valor" grande valor={valor} onValor={setValor} placeholder="0" autoFocus={!borrador} />
         </Campo>
-        <Campo etiqueta="Descripción" htmlFor="r-desc">
-          <Entrada id="r-desc" value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder={tipo === 'ingreso' ? 'Ej: sueldo María' : 'Ej: domicilio pizza'} maxLength={160} />
-        </Campo>
-        <div>
+
+        <div className="min-w-0">
           <p id="r-cat" className="mb-1.5 text-[12px] font-semibold text-muted">Categoría</p>
           <div role="radiogroup" aria-labelledby="r-cat" className="flex flex-wrap gap-1.5">
             {categorias.map(c => {
@@ -156,37 +182,57 @@ export function HojaRegistro() {
               const Icono = iconoDe(c, estado?.categorias);
               return (
                 <button key={c} type="button" role="radio" aria-checked={elegida} onClick={() => setCategoria(c)}
-                  className={cx('foco inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition active:scale-[0.97]',
+                  className={cx('foco inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition active:scale-[0.97]',
                     elegida ? 'bg-accent-soft text-ink ring-2 ring-accent' : 'bg-surface-2 text-ink-2 hover:bg-surface-3')}>
                   <Icono className={cx('size-4 shrink-0', elegida ? 'text-accent-strong' : 'text-muted')} aria-hidden />
-                  <span className="max-w-[200px] truncate">{c}</span>
+                  <span className="min-w-0 truncate">{c}</span>
                   {elegida && <Check className="size-3.5 shrink-0 text-accent-strong" strokeWidth={3} aria-hidden />}
                 </button>
               );
             })}
           </div>
         </div>
-        <Campo etiqueta="Fecha" htmlFor="r-fecha">
-          <Entrada id="r-fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} required />
-        </Campo>
 
-        {!edicion && rubrosPlan.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-[12px] font-semibold text-muted">Del presupuesto de {etiquetaMes(mesMov)}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {rubrosPlan.slice(0, 6).map(x => (
-                <PastillaSuave key={x.r.id} tono="neutro" onClick={() => { setDescripcion(x.r.nombre); setValor(Math.round(x.v)); }}>
-                  <span className="max-w-[160px] truncate">{x.r.nombre}</span>
-                  <span className="text-muted">· {copCorto(x.v)}</span>
-                </PastillaSuave>
-              ))}
+        {/* Ítem del presupuesto: Combustible, Mercado, Sueldo Jaime… */}
+        {items.length > 0 && (
+          <div className="min-w-0">
+            <p id="r-item" className="mb-1.5 text-[12px] font-semibold text-muted">
+              ¿Qué ítem de {cat}? <span className="font-normal">(opcional)</span>
+            </p>
+            <div role="radiogroup" aria-labelledby="r-item" className="flex flex-col gap-1.5">
+              {items.map(x => {
+                const elegido = rubroId === x.r.id;
+                const queda = x.plan - x.antes;
+                return (
+                  <button key={x.r.id} type="button" role="radio" aria-checked={elegido} onClick={() => elegirItem(elegido ? null : x.r)}
+                    className={cx('foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left transition',
+                      elegido ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-2 hover:bg-surface-3')}>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold">{x.r.nombre}</span>
+                      <span className="block truncate text-[11px] text-muted">
+                        {!x.plan
+                          ? `Sin presupuesto en ${etiquetaMes(mesMov)}`
+                          : tipo === 'ingreso'
+                            ? `Esperado ${cop(x.plan)}${x.antes ? ` · recibido ${cop(x.antes)}` : ''}`
+                            : `Presupuesto ${cop(x.plan)} · ${queda >= 0 ? `quedan ${cop(queda)}` : `pasado ${cop(-queda)}`}`}
+                      </span>
+                    </span>
+                    <span className={cx('grid size-5 shrink-0 place-items-center rounded-full border-2', elegido ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line bg-surface')}>
+                      {elegido && <Check className="size-3" strokeWidth={3} />}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {tipo === 'egreso' && planCat > 0 && (
+        {/* Cómo queda el ítem (o la categoría) con este movimiento */}
+        {item && item.plan > 0 ? (
+          <ResumenItem tipo={tipo} valor={valor} categoria={cat} nombre={item.r.nombre} plan={item.plan} antes={item.antes} mes={etiquetaMes(mesMov)} />
+        ) : tipo === 'egreso' && planCat > 0 && (
           <div className={cx('rounded-2xl p-3 text-[12px]', conEste > planCat ? 'bg-neg-soft' : conEste >= planCat * 0.85 ? 'bg-warn-soft' : 'bg-surface-2')}>
-            <p className="flex items-baseline justify-between gap-2">
+            <p className="flex flex-wrap items-baseline justify-between gap-x-2">
               <span className="text-ink-2">Con este gasto, en {cat} llevas</span>
               <b className={cx('font-semibold tabular-nums', conEste > planCat ? 'text-neg-text' : 'text-ink')}>{cop(conEste)} de {cop(planCat)}</b>
             </p>
@@ -195,16 +241,25 @@ export function HojaRegistro() {
           </div>
         )}
 
-        {fueraDelPlan && <AvisoMesFueraCompacto mesId={mesMov} />}
-        <Campo etiqueta={tipo === 'ingreso' ? 'Llegó por' : 'Medio de pago'} htmlFor="r-medio">
-          <Selector id="r-medio" value={medio} onChange={e => setMedio(e.target.value)}>
-            {MEDIOS_PAGO.map(x => <option key={x}>{x}</option>)}
-          </Selector>
+        <Campo etiqueta="Descripción" htmlFor="r-desc">
+          <Entrada id="r-desc" value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder={tipo === 'ingreso' ? 'Ej: sueldo María' : 'Ej: tanqueada'} maxLength={160} />
         </Campo>
 
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+          <Campo etiqueta="Fecha" htmlFor="r-fecha">
+            <Entrada id="r-fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} required />
+          </Campo>
+          <Campo etiqueta={tipo === 'ingreso' ? 'Llegó por' : 'Medio de pago'} htmlFor="r-medio">
+            <Selector id="r-medio" value={medio} onChange={e => setMedio(e.target.value)}>
+              {MEDIOS_PAGO.map(x => <option key={x}>{x}</option>)}
+            </Selector>
+          </Campo>
+        </div>
+        {fueraDelPlan && <AvisoMesFueraCompacto mesId={mesMov} />}
+
         {conTarjeta && (tarjetas.length ? (
-          <div className="flex flex-col gap-3 rounded-2xl bg-surface-2 p-3">
-            <div>
+          <div className="flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-3">
+            <div className="min-w-0">
               <p id="r-tarjeta" className="mb-1.5 text-[12px] font-semibold text-muted">¿De cuál tarjeta?</p>
               <div role="radiogroup" aria-labelledby="r-tarjeta" className="flex flex-col gap-1.5">
                 {[...tarjetas.map(t => ({ id: t.id, nombre: t.nombre, icono: iconoRubro(t, estado?.categorias.find(c => c.id === t.categoria_id)) })),
@@ -213,7 +268,7 @@ export function HojaRegistro() {
                   const disp = op.id && estado ? cuposTarjetas(estado, mesMov).find(c => c.rubro.id === op.id) : undefined;
                   return (
                     <button key={op.id} type="button" role="radio" aria-checked={elegida} onClick={() => setTarjetaId(op.id)}
-                      className={cx('foco flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition',
+                      className={cx('foco flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left transition',
                         elegida ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface hover:bg-surface-3')}>
                       <span className={cx('grid size-8 shrink-0 place-items-center rounded-lg', elegida ? 'bg-surface text-accent-strong' : 'bg-surface-2 text-ink-2')}>
                         <op.icono className="size-4" />
@@ -221,7 +276,7 @@ export function HojaRegistro() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-semibold">{op.nombre}</span>
                         {op.id !== 0 && (
-                          <span className={cx('block text-[11px]', disp && disp.disponible < 0 ? 'font-semibold text-neg-text' : 'text-muted')}>
+                          <span className={cx('block truncate text-[11px]', disp && disp.disponible < 0 ? 'font-semibold text-neg-text' : 'text-muted')}>
                             {disp ? `Disponible ${cop(disp.disponible + (edicion && edicion.tarjeta_id === op.id && (edicion.fecha ?? '').slice(0, 7) <= mesMov ? edicion.valor ?? 0 : 0))} de ${cop(disp.cupo)}` : 'Sin cupo registrado'}
                           </span>
                         )}
@@ -235,15 +290,13 @@ export function HojaRegistro() {
               </div>
             </div>
             {tarjeta && !cupo && (
-              <p className="text-[12px] text-muted">
-                Para ver cuánto cupo les queda, agréguenlo en Deudas y metas (⋯ en la deuda).
-              </p>
+              <p className="text-[12px] text-muted">Para ver cuánto cupo les queda, agréguenlo en Deudas y metas (⋯ en la deuda).</p>
             )}
             {cupo && (
               <div className="text-[12px]">
-                <p className="flex items-baseline justify-between gap-2">
-                  <span className="min-w-0 truncate text-ink-2">Cupo disponible</span>
-                  <b className="shrink-0 font-semibold tabular-nums">{cop(disponibleAntes)} de {cop(cupo.cupo)}</b>
+                <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+                  <span className="text-ink-2">Cupo disponible</span>
+                  <b className="font-semibold tabular-nums">{cop(disponibleAntes)} de {cop(cupo.cupo)}</b>
                 </p>
                 <Medidor className="mt-2 bg-surface!" valor={cupo.cupo ? (cupo.cupo - disponibleDespues) / cupo.cupo : 0}
                   tono={disponibleDespues < 0 ? 'neg' : 'ink'} etiqueta="Cupo usado de la tarjeta" />
@@ -253,6 +306,19 @@ export function HojaRegistro() {
                     : `Después de esta compra quedan ${cop(disponibleDespues)}`}
                 </p>
               </div>
+            )}
+            {tarjeta && (
+              <p className="flex items-start gap-2 border-t border-line pt-3 text-[12px] text-ink-2">
+                <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted" />
+                {pago ? (
+                  <span>
+                    Entra al extracto del <b className="font-semibold">{fechaCorta(pago.corte)}</b> y la pagas hasta el <b className="font-semibold">{fechaCorta(pago.pago)}</b>:
+                    sale del presupuesto de <b className="font-semibold">{etiquetaMes(pago.mesPago)}</b> <span className="whitespace-nowrap">(sueldo del {pago.sueldo})</span>.
+                  </span>
+                ) : (
+                  <span className="text-muted">Para saber en qué mes la pagas, agrega el día de corte y de pago de la tarjeta en Deudas y metas (⋯ en la deuda).</span>
+                )}
+              </p>
             )}
           </div>
         ) : (
@@ -273,5 +339,46 @@ export function HojaRegistro() {
         )}
       </form>
     </Hoja>
+  );
+}
+
+/**
+ * Cómo queda un ítem del presupuesto con este movimiento:
+ *   $26.000 → Transporte y Salud
+ *   Combustible: presupuesto $80.000
+ *   Restante en el mes: $54.000
+ */
+function ResumenItem({ tipo, valor, categoria, nombre, plan, antes, mes }: {
+  tipo: TipoMovimiento; valor: number; categoria: string; nombre: string; plan: number; antes: number; mes: string;
+}) {
+  const conEste = antes + valor;
+  const queda = plan - conEste;
+  const ingreso = tipo === 'ingreso';
+  const mal = !ingreso && queda < 0;
+  return (
+    <div className={cx('rounded-2xl p-3 text-[13px]', mal ? 'bg-neg-soft' : !ingreso && queda < plan * 0.15 ? 'bg-warn-soft' : 'bg-surface-2')} aria-live="polite">
+      <p className="text-ink-2">
+        <b className={cx('font-semibold tabular-nums', ingreso ? 'text-pos-text' : 'text-ink')}>{valor ? conSigno(valor, tipo) : cop(0)}</b>
+        {' → '}{categoria}
+      </p>
+      <p className="mt-1 flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="font-semibold">{nombre}</span>
+        <span className="text-ink-2 tabular-nums">{ingreso ? 'esperado' : 'presupuesto'} {cop(plan)}</span>
+      </p>
+      {antes > 0 && (
+        <p className="flex flex-wrap items-baseline justify-between gap-x-2 text-[12px] text-muted">
+          <span>{ingreso ? 'Ya recibido' : 'Ya gastado'} en {mes}</span>
+          <span className="tabular-nums">{cop(antes)}</span>
+        </p>
+      )}
+      <Medidor className="my-2 bg-surface!" valor={plan ? conEste / plan : 0} tono={mal ? 'neg' : ingreso ? 'pos' : 'ink'} etiqueta={`${nombre}: ${ingreso ? 'recibido' : 'gastado'} del presupuesto`} />
+      <p className={cx('flex flex-wrap items-baseline justify-between gap-x-2 font-semibold', mal ? 'text-neg-text' : 'text-ink')}>
+        {ingreso
+          ? (queda > 0 ? <><span>Falta por recibir en el mes</span><span className="tabular-nums">{cop(queda)}</span></>
+            : <><span>{queda === 0 ? 'Recibido completo' : 'Recibiste más de lo esperado'}</span><span className="tabular-nums">{queda < 0 ? `+${cop(-queda)}` : ''}</span></>)
+          : (queda >= 0 ? <><span>Restante en el mes</span><span className="tabular-nums">{cop(queda)}</span></>
+            : <><span>Te pasas del presupuesto</span><span className="tabular-nums">{cop(-queda)}</span></>)}
+      </p>
+    </div>
   );
 }
